@@ -9,7 +9,7 @@ import pillow_heif
 pillow_heif.register_heif_opener()
 from bright_channel import (
     bright_channel, dark_channel, normalize_bright_channel, erode_bright_channel,
-    compute_illumination_invariants, dehaze, to_u8
+    compute_illumination_invariants, dehaze, to_u8, shadow_segmentation
 )
 
 app = Flask(__name__)
@@ -207,6 +207,10 @@ HTML = """
       <button data-view="shadow_depth">Shadow Depth</button>
       <button data-view="shadow_depth_gray">Depth (gray)</button>
       <button data-view="albedo">Albedo</button>
+      <button data-view="seg_confidence">Seg. Confidence</button>
+      <button data-view="seg_vis">Segmentation</button>
+      <button data-view="seg_shadow">Shadow Mask</button>
+      <button data-view="seg_qcand">Good Candidates</button>
       <button data-view="original">Original</button>
     </div>
     <div id="haze-views" style="display:none">
@@ -628,6 +632,30 @@ def render():
             buf = encode_png(to_u8(d))
         else:
             buf = encode_png(to_u8(dc))
+    elif view.startswith('seg_'):
+        bc = bright_channel(img_float, kappa)
+        bc_norm = normalize_bright_channel(bc, beta)
+        bc_ref = erode_bright_channel(bc_norm, kappa)
+
+        confidence_map, labels_vis, shadow_intensity, q_cand_map = shadow_segmentation(
+            img_float, bc_ref, felz_scale=max(kappa * 15, 50))
+
+        if view == 'seg_confidence':
+            if gamma != 1.0:
+                confidence_map = np.power(np.clip(confidence_map, 0, 1), gamma)
+            buf = encode_png(cv2.applyColorMap(to_u8(confidence_map), cv2.COLORMAP_INFERNO))
+        elif view == 'seg_vis':
+            buf = encode_png(labels_vis)
+        elif view == 'seg_shadow':
+            if gamma != 1.0:
+                shadow_intensity = np.power(np.clip(shadow_intensity, 0, 1), gamma)
+            buf = encode_png(to_u8(shadow_intensity))
+        elif view == 'seg_qcand':
+            if gamma != 1.0:
+                q_cand_map = np.power(np.clip(q_cand_map, 0, 1), gamma)
+            buf = encode_png(cv2.applyColorMap(to_u8(q_cand_map), cv2.COLORMAP_INFERNO))
+        else:
+            buf = encode_png(to_u8(confidence_map))
     else:
         bc_ref, mrf = compute(img_float, guides, kappa, beta, gamma, gf_radius, gf_eps, mode)
         if view == 'refined':
@@ -714,6 +742,25 @@ def save():
             result = to_u8(d)
         else:
             result = to_u8(dc)
+    elif view.startswith('seg_'):
+        bc = bright_channel(img_float, kappa)
+        bc_norm = normalize_bright_channel(bc, beta)
+        bc_ref_seg = erode_bright_channel(bc_norm, kappa)
+        confidence_map, labels_vis, shadow_intensity, q_cand_map = shadow_segmentation(
+            img_float, bc_ref_seg, felz_scale=max(kappa * 15, 50))
+        if view == 'seg_confidence':
+            v = confidence_map if gamma == 1.0 else np.power(np.clip(confidence_map, 0, 1), gamma)
+            result = cv2.applyColorMap(to_u8(v), cv2.COLORMAP_INFERNO)
+        elif view == 'seg_vis':
+            result = labels_vis
+        elif view == 'seg_shadow':
+            v = shadow_intensity if gamma == 1.0 else np.power(np.clip(shadow_intensity, 0, 1), gamma)
+            result = to_u8(v)
+        elif view == 'seg_qcand':
+            v = q_cand_map if gamma == 1.0 else np.power(np.clip(q_cand_map, 0, 1), gamma)
+            result = cv2.applyColorMap(to_u8(v), cv2.COLORMAP_INFERNO)
+        else:
+            result = to_u8(confidence_map)
     else:
         bc_ref, mrf = compute(img_float, guides, kappa, beta, gamma, gf_radius, gf_eps, mode)
         if view == 'refined':

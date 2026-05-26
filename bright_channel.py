@@ -2,6 +2,8 @@ import sys
 import numpy as np
 import cv2
 from pathlib import Path
+from skimage.segmentation import felzenszwalb
+from sklearn.mixture import GaussianMixture
 
 
 def bright_channel(img, kappa=15):
@@ -464,6 +466,236 @@ def save_results(image_path, img, bc, bc_norm, bc_refined):
 
     print(f"Results saved to {out_dir}/")
     return out_dir
+
+
+def _per_segment_means(img_float, bc_refined, hue, labels, n_labels):
+    """Vectorized per-segment mean computation for RGB, bright channel, and hue."""
+    h, w = labels.shape
+    flat_labels = labels.ravel()
+
+    seg_rgb_sum = np.zeros((n_labels, 3), dtype=np.float64)
+    seg_bc_sum = np.zeros(n_labels, dtype=np.float64)
+    seg_hue_sum = np.zeros(n_labels, dtype=np.float64)
+    seg_count = np.zeros(n_labels, dtype=np.float64)
+
+    for c in range(3):
+        np.add.at(seg_rgb_sum[:, c], flat_labels, img_float[:, :, c].ravel())
+    np.add.at(seg_bc_sum, flat_labels, bc_refined.ravel())
+    np.add.at(seg_hue_sum, flat_labels, hue.ravel())
+    np.add.at(seg_count, flat_labels, 1)
+
+    seg_count_safe = np.maximum(seg_count, 1)
+    seg_rgb_mean = seg_rgb_sum / seg_count_safe[:, None]
+    seg_bc_mean = seg_bc_sum / seg_count_safe
+    seg_hue_mean = seg_hue_sum / seg_count_safe
+
+    return seg_rgb_mean, seg_bc_mean, seg_hue_mean, seg_count
+
+
+def _find_neighbor_pairs(labels):
+    """Find all unique (a, b) neighbor segment pairs with a < b."""
+    h, w = labels.shape
+    pairs = set()
+    if w > 1:
+        mask = labels[:, :-1] != labels[:, 1:]
+        ys, xs = np.where(mask)
+        for y, x in zip(ys, xs):
+            a, b = int(labels[y, x]), int(labels[y, x + 1])
+            pairs.add((min(a, b), max(a, b)))
+    if h > 1:
+        mask = labels[:-1, :] != labels[1:, :]
+        ys, xs = np.where(mask)
+        for y, x in zip(ys, xs):
+            a, b = int(labels[y, x]), int(labels[y + 1, x])
+            pairs.add((min(a, b), max(a, b)))
+    return pairs
+
+
+def _fit_gmm_to_histogram(hist_values, max_components=3):
+    """Fit a GMM to a set of values, selecting n_components via quasi-AIC."""
+    if len(hist_values) < 10:
+        return None
+    X = hist_values.reshape(-1, 1)
+    best_aic = np.inf
+    best_gmm = None
+    for k in range(1, min(max_components + 1, len(hist_values) // 5 + 1)):
+        try:
+            gmm = GaussianMixture(n_components=k, covariance_type='full',
+                                  max_iter=50, random_state=0)
+            gmm.fit(X)
+            aic = gmm.aic(X)
+            if aic < best_aic:
+                best_aic = aic
+                best_gmm = gmm
+        except Exception:
+            continue
+    return best_gmm
+
+
+def shadow_segmentation(img_float, bc_refined, felz_scale=200, felz_sigma=0.8,
+                        felz_min_size=50, n_segmentations=3, theta_e=1.2):
+    """TPAMI Section 5.2: shadow detection via segmentation + histogram confidence.
+
+    Uses per-segment means instead of per-pixel semicircular patches for speed.
+    For each neighboring segment pair, compares mean RGB, bright channel ratio,
+    and hue difference — same features, vectorized over segments not pixels.
+
+    Returns:
+        confidence_map: per-pixel shadow confidence [0, 1]
+        labels_vis: colored segmentation for visualization
+        shadow_intensity: per-pixel estimated shadow intensity
+        q_cand_map: per-pixel "good candidate" score
+    """
+    h, w = img_float.shape[:2]
+    img_u8 = (np.clip(img_float, 0, 1) * 255).astype(np.uint8)
+
+    hsv = cv2.cvtColor(img_u8, cv2.COLOR_BGR2HSV).astype(np.float64)
+    hue = hsv[:, :, 0] / 180.0
+
+    conf_maps = []
+    last_labels = None
+    last_q_cand = None
+
+    scales = [felz_scale * (0.5 + i) for i in range(n_segmentations)]
+
+    for scale in scales:
+        labels = felzenszwalb(img_u8[:, :, ::-1], scale=scale,
+                              sigma=felz_sigma, min_size=felz_min_size)
+        n_labels = labels.max() + 1
+
+        seg_rgb, seg_bc, seg_hue, seg_count = _per_segment_means(
+            img_float, bc_refined, hue, labels, n_labels)
+
+        neighbor_pairs = _find_neighbor_pairs(labels)
+        if not neighbor_pairs:
+            continue
+
+        pairs_arr = np.array(list(neighbor_pairs))
+        a_ids, b_ids = pairs_arr[:, 0], pairs_arr[:, 1]
+
+        # For each pair, determine which is darker (inside) by bright channel
+        bc_a = seg_bc[a_ids]
+        bc_b = seg_bc[b_ids]
+        a_darker = bc_a < bc_b
+        in_ids = np.where(a_darker, a_ids, b_ids)
+        out_ids = np.where(a_darker, b_ids, a_ids)
+
+        bc_in = seg_bc[in_ids]
+        bc_out = seg_bc[out_ids]
+        hue_in = seg_hue[in_ids]
+        hue_out = seg_hue[out_ids]
+        rgb_in = seg_rgb[in_ids]
+        rgb_out = seg_rgb[out_ids]
+
+        # Filter by edge ratio threshold
+        bc_ratio = np.where(bc_out > 1e-6, bc_in / bc_out, 1.0)
+        valid = (bc_ratio > 1.0 / theta_e) & (bc_ratio < theta_e)
+
+        if np.sum(valid) < 5:
+            continue
+
+        bc_ratio_v = bc_ratio[valid]
+        hue_diff_v = (hue_in - hue_out)[valid]
+        rgb_in_v = rgb_in[valid]
+        rgb_out_v = rgb_out[valid]
+        in_ids_v = in_ids[valid]
+
+        # Eq. 27: q(i) = 1 if all RGB channels darker inside
+        q_per_pair = np.all(rgb_in_v < rgb_out_v, axis=1).astype(np.float64)
+
+        # Per-segment q_cand: average q over all pairs involving each segment
+        q_cand = np.zeros(n_labels)
+        q_count = np.zeros(n_labels)
+        np.add.at(q_cand, in_ids_v, q_per_pair)
+        np.add.at(q_count, in_ids_v, 1)
+        q_count_safe = np.maximum(q_count, 1)
+        q_cand = q_cand / q_count_safe
+
+        # Good candidates: pairs from segments with high q_cand
+        weights = q_cand[in_ids_v]
+        good_mask = weights > 0.3
+
+        if np.sum(good_mask) < 5:
+            continue
+
+        # Fit GMMs to good-candidate distributions
+        gmm_bc = _fit_gmm_to_histogram(bc_ratio_v[good_mask])
+        gmm_hue = _fit_gmm_to_histogram(hue_diff_v[good_mask])
+
+        # Eq. 28: per-segment confidence from GMM
+        p_bright = np.zeros(n_labels)
+        p_hue = np.zeros(n_labels)
+
+        # Vectorized: score all valid border pairs, then aggregate per segment
+        if gmm_bc is not None:
+            all_bc_scores = np.exp(gmm_bc.score_samples(bc_ratio_v.reshape(-1, 1)))
+        else:
+            all_bc_scores = np.zeros(len(bc_ratio_v))
+
+        if gmm_hue is not None:
+            all_hue_scores = np.exp(gmm_hue.score_samples(hue_diff_v.reshape(-1, 1)))
+        else:
+            all_hue_scores = np.zeros(len(hue_diff_v))
+
+        # Take max score per segment
+        for idx in range(len(in_ids_v)):
+            sid = in_ids_v[idx]
+            if all_bc_scores[idx] > p_bright[sid]:
+                p_bright[sid] = all_bc_scores[idx]
+            if all_hue_scores[idx] > p_hue[sid]:
+                p_hue[sid] = all_hue_scores[idx]
+
+        if p_bright.max() > 0:
+            p_bright /= p_bright.max()
+        if p_hue.max() > 0:
+            p_hue /= p_hue.max()
+
+        # Eq. 29
+        p_combined = q_cand * (p_bright + p_hue) / 2.0
+
+        conf_maps.append(p_combined[labels])
+        last_labels = labels
+        last_q_cand = q_cand
+
+    if not conf_maps:
+        return (np.zeros((h, w)), np.zeros((h, w, 3), dtype=np.uint8),
+                np.zeros((h, w)), np.zeros((h, w)))
+
+    confidence_map = np.mean(conf_maps, axis=0)
+    confidence_map = confidence_map / (confidence_map.max() + 1e-6)
+
+    shadow_intensity = (1.0 - bc_refined) * confidence_map
+
+    labels_vis = _colorize_segments(last_labels, confidence_map)
+    q_cand_map = last_q_cand[last_labels]
+
+    return confidence_map, labels_vis, shadow_intensity, q_cand_map
+
+
+def _colorize_segments(labels, confidence_map):
+    """Color segments by their shadow confidence."""
+    n_labels = labels.max() + 1
+    h, w = labels.shape
+
+    # Generate random but stable colors per segment
+    rng = np.random.RandomState(42)
+    colors = rng.randint(60, 220, size=(n_labels, 3)).astype(np.uint8)
+
+    vis = colors[labels]
+
+    # Overlay confidence as tint: more red = higher shadow confidence
+    conf_3ch = confidence_map[:, :, None]
+    shadow_tint = np.array([0, 0, 200], dtype=np.float64)
+    vis = vis.astype(np.float64) * (1 - conf_3ch * 0.7) + shadow_tint * conf_3ch * 0.7
+    vis = np.clip(vis, 0, 255).astype(np.uint8)
+
+    # Draw segment boundaries
+    edges = np.zeros((h, w), dtype=bool)
+    edges[:, :-1] |= labels[:, :-1] != labels[:, 1:]
+    edges[:-1, :] |= labels[:-1, :] != labels[1:, :]
+    vis[edges] = [255, 255, 255]
+
+    return vis
 
 
 if __name__ == "__main__":
