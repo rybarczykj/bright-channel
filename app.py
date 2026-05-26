@@ -74,6 +74,23 @@ def encode_png(arr):
     return io.BytesIO(buf.tobytes())
 
 
+COLORMAPS = {
+    'inferno': cv2.COLORMAP_INFERNO,
+    'viridis': cv2.COLORMAP_VIRIDIS,
+    'magma': cv2.COLORMAP_MAGMA,
+    'plasma': cv2.COLORMAP_PLASMA,
+    'hot': cv2.COLORMAP_HOT,
+    'bone': cv2.COLORMAP_BONE,
+}
+
+
+def apply_colormap(gray, name='inferno'):
+    u8 = to_u8(gray)
+    if name == 'grayscale':
+        return u8
+    return cv2.applyColorMap(u8, COLORMAPS.get(name, cv2.COLORMAP_INFERNO))
+
+
 DATA_DIR = Path(__file__).parent / "data"
 
 
@@ -183,6 +200,7 @@ HTML = """
     <input type="range" id="beta" min="0.01" max="0.5" step="0.01" value="0.10">
   </div>
 
+  <div id="gf-section">
   <h2>MRF / Guided Filter</h2>
   <div class="slider-group">
     <label>Radius <span id="v-gf_radius">8</span></label>
@@ -191,6 +209,7 @@ HTML = """
   <div class="slider-group">
     <label>Epsilon (log) <span id="v-gf_eps_log">0.0100</span></label>
     <input type="range" id="gf_eps_log" min="-4" max="1" step="0.1" value="-2">
+  </div>
   </div>
 
   <h2>Output</h2>
@@ -221,6 +240,19 @@ HTML = """
       <button data-view="dark_channel">Dark Channel</button>
       <button data-view="original">Original</button>
     </div>
+  </div>
+
+  <div id="colormap-section" style="display:none; margin-top: 8px;">
+    <label style="font-size: 12px; color: #aaa;">Colormap</label>
+    <select class="preset-select" id="colormap-select" style="margin-top: 4px;">
+      <option value="inferno">Inferno</option>
+      <option value="viridis">Viridis</option>
+      <option value="magma">Magma</option>
+      <option value="plasma">Plasma</option>
+      <option value="hot">Hot</option>
+      <option value="bone">Bone</option>
+      <option value="grayscale">Grayscale</option>
+    </select>
   </div>
 
   <div class="timing" id="timing"></div>
@@ -256,10 +288,13 @@ HTML = """
   let currentMode = 'shadow';
   let debounceTimer = null;
 
+  const colormapViews = new Set(['seg_confidence', 'seg_qcand', 'shadow_depth', 'depth']);
+
   function getParams() {
     const p = { view: currentView, mode: currentMode, image: document.getElementById('image-select').value };
     sliders.forEach(s => p[s] = document.getElementById(s).value);
     p['gf_eps'] = Math.pow(10, parseFloat(p['gf_eps_log']));
+    if (colormapViews.has(currentView)) p['colormap'] = document.getElementById('colormap-select').value;
     return p;
   }
 
@@ -284,6 +319,7 @@ HTML = """
   }
 
   sliders.forEach(s => document.getElementById(s).addEventListener('input', update));
+  document.getElementById('colormap-select').addEventListener('change', update);
   function bindThumbs() {
     document.querySelectorAll('.thumb').forEach(t => {
       t.addEventListener('click', () => {
@@ -296,11 +332,18 @@ HTML = """
   }
   bindThumbs();
 
+  function updateControlVisibility() {
+    const isSeg = currentView.startsWith('seg_');
+    document.getElementById('gf-section').style.display = isSeg ? 'none' : '';
+    document.getElementById('colormap-section').style.display = colormapViews.has(currentView) ? '' : 'none';
+  }
+
   document.querySelectorAll('#view-toggle button[data-view]').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#view-toggle button[data-view]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentView = btn.dataset.view;
+      updateControlVisibility();
       update();
     });
   });
@@ -321,6 +364,7 @@ HTML = """
       }
       document.querySelectorAll('#view-toggle button[data-view]').forEach(b => b.classList.remove('active'));
       document.querySelector(`button[data-view="${currentView}"]`).classList.add('active');
+      updateControlVisibility();
       update();
     });
   });
@@ -344,6 +388,7 @@ HTML = """
     sliders.forEach(s => {
       if (preset[s] !== undefined) document.getElementById(s).value = preset[s];
     });
+    updateControlVisibility();
     update();
   }
 
@@ -595,6 +640,7 @@ def render():
     gf_radius = int(request.args.get('gf_radius', 8))
     gf_eps = float(request.args.get('gf_eps', 0.01))
     mode = request.args.get('mode', 'shadow')
+    cmap = request.args.get('colormap', 'inferno')
 
     data = load_image(image_path)
     if data is None:
@@ -623,8 +669,7 @@ def render():
             d = depth
             if gamma != 1.0:
                 d = np.power(np.clip(d, 0, 1), gamma)
-            depth_color = cv2.applyColorMap(to_u8(d), cv2.COLORMAP_INFERNO)
-            buf = encode_png(depth_color)
+            buf = encode_png(apply_colormap(d, cmap))
         elif view == 'depth_gray':
             d = depth
             if gamma != 1.0:
@@ -643,7 +688,7 @@ def render():
         if view == 'seg_confidence':
             if gamma != 1.0:
                 confidence_map = np.power(np.clip(confidence_map, 0, 1), gamma)
-            buf = encode_png(cv2.applyColorMap(to_u8(confidence_map), cv2.COLORMAP_INFERNO))
+            buf = encode_png(apply_colormap(confidence_map, cmap))
         elif view == 'seg_vis':
             buf = encode_png(labels_vis)
         elif view == 'seg_shadow':
@@ -653,7 +698,7 @@ def render():
         elif view == 'seg_qcand':
             if gamma != 1.0:
                 q_cand_map = np.power(np.clip(q_cand_map, 0, 1), gamma)
-            buf = encode_png(cv2.applyColorMap(to_u8(q_cand_map), cv2.COLORMAP_INFERNO))
+            buf = encode_png(apply_colormap(q_cand_map, cmap))
         else:
             buf = encode_png(to_u8(confidence_map))
     else:
@@ -668,7 +713,7 @@ def render():
             if gamma != 1.0:
                 d = np.power(np.clip(d, 0, 1), gamma)
             if view == 'shadow_depth':
-                buf = encode_png(cv2.applyColorMap(to_u8(d), cv2.COLORMAP_INFERNO))
+                buf = encode_png(apply_colormap(d, cmap))
             else:
                 buf = encode_png(to_u8(d))
         elif view == 'albedo':
@@ -710,6 +755,7 @@ def save():
     gf_radius = int(request.args.get('gf_radius', 8))
     gf_eps = float(request.args.get('gf_eps', 0.01))
     mode = request.args.get('mode', 'shadow')
+    cmap = request.args.get('colormap', 'inferno')
 
     data = load_image_full(image_path)
     if data is None:
@@ -736,7 +782,7 @@ def save():
             result = to_u8(t_vis)
         elif view == 'depth':
             d = depth if gamma == 1.0 else np.power(np.clip(depth, 0, 1), gamma)
-            result = cv2.applyColorMap(to_u8(d), cv2.COLORMAP_INFERNO)
+            result = apply_colormap(d, cmap)
         elif view == 'depth_gray':
             d = depth if gamma == 1.0 else np.power(np.clip(depth, 0, 1), gamma)
             result = to_u8(d)
@@ -750,7 +796,7 @@ def save():
             img_float, bc_ref_seg, felz_scale=max(kappa * 15, 50))
         if view == 'seg_confidence':
             v = confidence_map if gamma == 1.0 else np.power(np.clip(confidence_map, 0, 1), gamma)
-            result = cv2.applyColorMap(to_u8(v), cv2.COLORMAP_INFERNO)
+            result = apply_colormap(v, cmap)
         elif view == 'seg_vis':
             result = labels_vis
         elif view == 'seg_shadow':
@@ -758,7 +804,7 @@ def save():
             result = to_u8(v)
         elif view == 'seg_qcand':
             v = q_cand_map if gamma == 1.0 else np.power(np.clip(q_cand_map, 0, 1), gamma)
-            result = cv2.applyColorMap(to_u8(v), cv2.COLORMAP_INFERNO)
+            result = apply_colormap(v, cmap)
         else:
             result = to_u8(confidence_map)
     else:
@@ -773,7 +819,7 @@ def save():
             if gamma != 1.0:
                 d = np.power(np.clip(d, 0, 1), gamma)
             if view == 'shadow_depth':
-                result = cv2.applyColorMap(to_u8(d), cv2.COLORMAP_INFERNO)
+                result = apply_colormap(d, cmap)
             else:
                 result = to_u8(d)
         elif view == 'albedo':
