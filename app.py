@@ -43,7 +43,11 @@ def load_image(path, max_dim=1200):
     return CACHE[key]
 
 
-def compute(img_float, guides, kappa, beta, gamma, gf_radius, gf_eps, mode='shadow'):
+def compute(image_name, img_float, guides, kappa, beta, gf_radius, gf_eps, mode='shadow'):
+    cache_key = f"compute:{image_name}:{kappa}:{beta}:{gf_radius}:{gf_eps}:{mode}"
+    if cache_key in CACHE:
+        return CACHE[cache_key]
+
     if mode == 'haze':
         bc = dark_channel(img_float, kappa)
     else:
@@ -61,9 +65,7 @@ def compute(img_float, guides, kappa, beta, gamma, gf_radius, gf_eps, mode='shad
             results.append(filtered)
         mrf = np.mean(results, axis=0).astype(np.float64)
 
-    if gamma != 1.0:
-        mrf = np.power(np.clip(mrf, 0, 1), gamma)
-
+    CACHE[cache_key] = (bc_ref, mrf)
     return bc_ref, mrf
 
 
@@ -711,11 +713,10 @@ def render():
         else:
             buf = encode_png(to_u8(confidence_map))
     else:
-        bc_ref, mrf = compute(img_float, guides, kappa, beta, gamma, gf_radius, gf_eps, mode)
+        bc_ref, mrf = compute(image_name, img_float, guides, kappa, beta, gf_radius, gf_eps, mode)
         if view == 'refined':
-            if gamma != 1.0:
-                bc_ref = np.power(np.clip(bc_ref, 0, 1), gamma)
-            buf = encode_png(bc_ref)
+            out = np.power(np.clip(bc_ref, 0, 1), gamma) if gamma != 1.0 else bc_ref
+            buf = encode_png(out)
         elif view in ('shadow_depth', 'shadow_depth_gray'):
             from bright_channel import transmission_to_depth
             d = transmission_to_depth(mrf)
@@ -727,13 +728,13 @@ def render():
                 buf = encode_png(to_u8(d))
         elif view == 'albedo':
             illum = np.maximum(mrf, 0.05)
-            albedo = img_float / illum[:, :, None]
-            albedo = np.clip(albedo, 0, 1)
+            albedo = np.clip(img_float / illum[:, :, None], 0, 1)
             if gamma != 1.0:
                 albedo = np.power(albedo, gamma)
             buf = encode_png(to_u8(albedo))
         else:
-            buf = encode_png(mrf)
+            out = np.power(np.clip(mrf, 0, 1), gamma) if gamma != 1.0 else mrf
+            buf = encode_png(out)
 
     return send_file(buf, mimetype='image/png')
 
@@ -817,7 +818,7 @@ def save():
         else:
             result = to_u8(confidence_map)
     else:
-        bc_ref, mrf = compute(img_float, guides, kappa, beta, gamma, gf_radius, gf_eps, mode)
+        bc_ref, mrf = compute(image_name, img_float, guides, kappa, beta, gf_radius, gf_eps, mode)
         if view == 'refined':
             if gamma != 1.0:
                 bc_ref = np.power(np.clip(bc_ref, 0, 1), gamma)
