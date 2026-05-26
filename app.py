@@ -85,11 +85,19 @@ COLORMAPS = {
     'bone': cv2.COLORMAP_BONE,
 }
 
+GRAY_RANGES = {
+    'grayscale': (0, 255),
+    'gray_light': (100, 255),
+    'gray_lighter': (150, 255),
+    'gray_lightest': (190, 255),
+}
+
 
 def apply_colormap(gray, name='inferno'):
     u8 = to_u8(gray)
-    if name == 'grayscale':
-        return u8
+    if name in GRAY_RANGES:
+        lo, hi = GRAY_RANGES[name]
+        return np.clip(lo + (u8.astype(np.float32) / 255.0) * (hi - lo), 0, 255).astype(np.uint8)
     return cv2.applyColorMap(u8, COLORMAPS.get(name, cv2.COLORMAP_INFERNO))
 
 
@@ -240,6 +248,10 @@ HTML = """
       <button data-view="depth">Depth</button>
       <button data-view="depth_gray">Depth (gray)</button>
       <button data-view="dark_channel">Dark Channel</button>
+      <button data-view="seg_confidence">Seg. Confidence</button>
+      <button data-view="seg_vis">Segmentation</button>
+      <button data-view="seg_shadow">Haze Mask</button>
+      <button data-view="seg_qcand">Good Candidates</button>
       <button data-view="original">Original</button>
     </div>
   </div>
@@ -254,6 +266,9 @@ HTML = """
       <option value="hot">Hot</option>
       <option value="bone">Bone</option>
       <option value="grayscale">Grayscale</option>
+      <option value="gray_light">Gray (light)</option>
+      <option value="gray_lighter">Gray (lighter)</option>
+      <option value="gray_lightest">Gray (lightest)</option>
     </select>
   </div>
 
@@ -685,13 +700,19 @@ def render():
         else:
             buf = encode_png(to_u8(dc))
     elif view.startswith('seg_'):
-        seg_key = f"seg:{image_name}:{kappa}:{beta}"
+        seg_key = f"seg:{image_name}:{kappa}:{beta}:{mode}"
         if seg_key in CACHE:
             confidence_map, labels_vis, shadow_intensity, q_cand_map = CACHE[seg_key]
         else:
-            bc = bright_channel(img_float, kappa)
-            bc_norm = normalize_bright_channel(bc, beta)
-            bc_ref = erode_bright_channel(bc_norm, kappa)
+            if mode == 'haze':
+                dc = dark_channel(img_float, kappa)
+                dc_norm = normalize_bright_channel(dc, beta)
+                dc_ref = erode_bright_channel(dc_norm, kappa)
+                bc_ref = 1.0 - dc_ref
+            else:
+                bc = bright_channel(img_float, kappa)
+                bc_norm = normalize_bright_channel(bc, beta)
+                bc_ref = erode_bright_channel(bc_norm, kappa)
             confidence_map, labels_vis, shadow_intensity, q_cand_map = shadow_segmentation(
                 img_float, bc_ref, felz_scale=max(kappa * 15, 50))
             CACHE[seg_key] = (confidence_map, labels_vis, shadow_intensity, q_cand_map)
@@ -799,9 +820,15 @@ def save():
         else:
             result = to_u8(dc)
     elif view.startswith('seg_'):
-        bc = bright_channel(img_float, kappa)
-        bc_norm = normalize_bright_channel(bc, beta)
-        bc_ref_seg = erode_bright_channel(bc_norm, kappa)
+        if mode == 'haze':
+            dc = dark_channel(img_float, kappa)
+            dc_norm = normalize_bright_channel(dc, beta)
+            dc_ref = erode_bright_channel(dc_norm, kappa)
+            bc_ref_seg = 1.0 - dc_ref
+        else:
+            bc = bright_channel(img_float, kappa)
+            bc_norm = normalize_bright_channel(bc, beta)
+            bc_ref_seg = erode_bright_channel(bc_norm, kappa)
         confidence_map, labels_vis, shadow_intensity, q_cand_map = shadow_segmentation(
             img_float, bc_ref_seg, felz_scale=max(kappa * 15, 50))
         if view == 'seg_confidence':
