@@ -658,38 +658,43 @@ def shadow_segmentation(img_float, bc_refined, felz_scale=200, felz_sigma=0.8,
         last_q_cand = q_cand
 
     if not conf_maps:
-        return (np.zeros((h, w)), np.zeros((h, w, 3), dtype=np.uint8),
+        return (np.zeros((h, w)), np.zeros((h, w)),
                 np.zeros((h, w)), np.zeros((h, w)))
 
     confidence_map = np.mean(conf_maps, axis=0)
     confidence_map = confidence_map / (confidence_map.max() + 1e-6)
 
     shadow_intensity = (1.0 - bc_refined) * confidence_map
-
-    labels_vis = _colorize_segments(last_labels, confidence_map)
     q_cand_map = last_q_cand[last_labels]
 
-    return confidence_map, labels_vis, shadow_intensity, q_cand_map
+    return confidence_map, last_labels, shadow_intensity, q_cand_map
 
 
-def _colorize_segments(labels, confidence_map):
-    """Color segments by their shadow confidence."""
+def colorize_segments(img_float, labels, confidence_map, style='random_tinted'):
+    """Color segments with different styles."""
     n_labels = labels.max() + 1
     h, w = labels.shape
 
-    # Generate random but stable colors per segment
-    rng = np.random.RandomState(42)
-    colors = rng.randint(60, 220, size=(n_labels, 3)).astype(np.uint8)
+    if style == 'mean_color':
+        seg_rgb_sum = np.zeros((n_labels, 3), dtype=np.float64)
+        seg_count = np.zeros(n_labels, dtype=np.float64)
+        flat_labels = labels.ravel()
+        for c in range(3):
+            np.add.at(seg_rgb_sum[:, c], flat_labels, img_float[:, :, c].ravel())
+        np.add.at(seg_count, flat_labels, 1)
+        seg_mean = seg_rgb_sum / np.maximum(seg_count, 1)[:, None]
+        vis = (np.clip(seg_mean[labels], 0, 1) * 255).astype(np.uint8)
+    else:
+        rng = np.random.RandomState(42)
+        colors = rng.randint(60, 220, size=(n_labels, 3)).astype(np.uint8)
+        vis = colors[labels]
 
-    vis = colors[labels]
+        if style == 'random_tinted':
+            conf_3ch = confidence_map[:, :, None]
+            shadow_tint = np.array([0, 0, 200], dtype=np.float64)
+            vis = vis.astype(np.float64) * (1 - conf_3ch * 0.7) + shadow_tint * conf_3ch * 0.7
+            vis = np.clip(vis, 0, 255).astype(np.uint8)
 
-    # Overlay confidence as tint: more red = higher shadow confidence
-    conf_3ch = confidence_map[:, :, None]
-    shadow_tint = np.array([0, 0, 200], dtype=np.float64)
-    vis = vis.astype(np.float64) * (1 - conf_3ch * 0.7) + shadow_tint * conf_3ch * 0.7
-    vis = np.clip(vis, 0, 255).astype(np.uint8)
-
-    # Draw segment boundaries
     edges = np.zeros((h, w), dtype=bool)
     edges[:, :-1] |= labels[:, :-1] != labels[:, 1:]
     edges[:-1, :] |= labels[:-1, :] != labels[1:, :]

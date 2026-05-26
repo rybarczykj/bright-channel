@@ -9,7 +9,8 @@ import pillow_heif
 pillow_heif.register_heif_opener()
 from bright_channel import (
     bright_channel, dark_channel, normalize_bright_channel, erode_bright_channel,
-    compute_illumination_invariants, dehaze, to_u8, shadow_segmentation
+    compute_illumination_invariants, dehaze, to_u8, shadow_segmentation,
+    colorize_segments
 )
 
 app = Flask(__name__)
@@ -271,6 +272,14 @@ HTML = """
       <option value="gray_lightest">Gray (lightest)</option>
     </select>
   </div>
+  <div id="segstyle-section" style="display:none; margin-top: 8px;">
+    <label style="font-size: 12px; color: #aaa;">Segment coloring</label>
+    <select class="preset-select" id="segstyle-select" style="margin-top: 4px;">
+      <option value="random_tinted">Random + confidence tint</option>
+      <option value="mean_color">Mean image color</option>
+      <option value="random_plain">Random (no tint)</option>
+    </select>
+  </div>
 
   <div class="timing" id="timing"></div>
 
@@ -312,6 +321,7 @@ HTML = """
     sliders.forEach(s => p[s] = document.getElementById(s).value);
     p['gf_eps'] = Math.pow(10, parseFloat(p['gf_eps_log']));
     if (colormapViews.has(currentView)) p['colormap'] = document.getElementById('colormap-select').value;
+    if (currentView === 'seg_vis') p['segstyle'] = document.getElementById('segstyle-select').value;
     return p;
   }
 
@@ -337,6 +347,7 @@ HTML = """
 
   sliders.forEach(s => document.getElementById(s).addEventListener('input', update));
   document.getElementById('colormap-select').addEventListener('change', update);
+  document.getElementById('segstyle-select').addEventListener('change', update);
   function bindThumbs() {
     document.querySelectorAll('.thumb').forEach(t => {
       t.addEventListener('click', () => {
@@ -353,6 +364,7 @@ HTML = """
     const isSeg = currentView.startsWith('seg_');
     document.getElementById('gf-section').style.display = isSeg ? 'none' : '';
     document.getElementById('colormap-section').style.display = colormapViews.has(currentView) ? '' : 'none';
+    document.getElementById('segstyle-section').style.display = currentView === 'seg_vis' ? '' : 'none';
   }
 
   document.querySelectorAll('#view-toggle button[data-view]').forEach(btn => {
@@ -700,7 +712,7 @@ def render():
     elif view.startswith('seg_'):
         seg_key = f"seg:{image_name}:{kappa}:{beta}:{mode}"
         if seg_key in CACHE:
-            confidence_map, labels_vis, shadow_intensity, q_cand_map = CACHE[seg_key]
+            confidence_map, seg_labels, shadow_intensity, q_cand_map = CACHE[seg_key]
         else:
             if mode == 'haze':
                 dc = dark_channel(img_float, kappa)
@@ -711,16 +723,17 @@ def render():
                 bc = bright_channel(img_float, kappa)
                 bc_norm = normalize_bright_channel(bc, beta)
                 bc_ref = erode_bright_channel(bc_norm, kappa)
-            confidence_map, labels_vis, shadow_intensity, q_cand_map = shadow_segmentation(
+            confidence_map, seg_labels, shadow_intensity, q_cand_map = shadow_segmentation(
                 img_float, bc_ref, felz_scale=max(kappa * 15, 50))
-            CACHE[seg_key] = (confidence_map, labels_vis, shadow_intensity, q_cand_map)
+            CACHE[seg_key] = (confidence_map, seg_labels, shadow_intensity, q_cand_map)
 
         if view == 'seg_confidence':
             if gamma != 1.0:
                 confidence_map = np.power(np.clip(confidence_map, 0, 1), gamma)
             buf = encode_png(apply_colormap(confidence_map, cmap))
         elif view == 'seg_vis':
-            buf = encode_png(labels_vis)
+            segstyle = request.args.get('segstyle', 'random_tinted')
+            buf = encode_png(colorize_segments(img_float, seg_labels, confidence_map, segstyle))
         elif view == 'seg_shadow':
             if gamma != 1.0:
                 shadow_intensity = np.power(np.clip(shadow_intensity, 0, 1), gamma)
@@ -827,13 +840,14 @@ def save():
             bc = bright_channel(img_float, kappa)
             bc_norm = normalize_bright_channel(bc, beta)
             bc_ref_seg = erode_bright_channel(bc_norm, kappa)
-        confidence_map, labels_vis, shadow_intensity, q_cand_map = shadow_segmentation(
+        confidence_map, seg_labels, shadow_intensity, q_cand_map = shadow_segmentation(
             img_float, bc_ref_seg, felz_scale=max(kappa * 15, 50))
         if view == 'seg_confidence':
             v = confidence_map if gamma == 1.0 else np.power(np.clip(confidence_map, 0, 1), gamma)
             result = apply_colormap(v, cmap)
         elif view == 'seg_vis':
-            result = labels_vis
+            segstyle = request.args.get('segstyle', 'random_tinted')
+            result = colorize_segments(img_float, seg_labels, confidence_map, segstyle)
         elif view == 'seg_shadow':
             v = shadow_intensity if gamma == 1.0 else np.power(np.clip(shadow_intensity, 0, 1), gamma)
             result = to_u8(v)
