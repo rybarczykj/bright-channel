@@ -370,17 +370,15 @@ HTML = """
       document.querySelectorAll('.view-toggle button[data-mode]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentMode = btn.dataset.mode;
-      if (currentMode === 'haze') {
-        document.getElementById('shadow-views').style.display = 'none';
-        document.getElementById('haze-views').style.display = '';
-        currentView = 'dehazed';
-      } else {
-        document.getElementById('shadow-views').style.display = '';
-        document.getElementById('haze-views').style.display = 'none';
-        currentView = 'mrf';
-      }
+      const showId = currentMode === 'haze' ? 'haze-views' : 'shadow-views';
+      const hideId = currentMode === 'haze' ? 'shadow-views' : 'haze-views';
+      document.getElementById(hideId).style.display = 'none';
+      document.getElementById(showId).style.display = '';
+      const hasView = document.querySelector(`#${showId} button[data-view="${currentView}"]`);
+      if (!hasView) currentView = currentMode === 'haze' ? 'dehazed' : 'mrf';
       document.querySelectorAll('#view-toggle button[data-view]').forEach(b => b.classList.remove('active'));
-      document.querySelector(`button[data-view="${currentView}"]`).classList.add('active');
+      const activeBtn = document.querySelector(`#${showId} button[data-view="${currentView}"]`);
+      if (activeBtn) activeBtn.classList.add('active');
       updateControlVisibility();
       update();
     });
