@@ -684,6 +684,21 @@ def colorize_segments(img_float, labels, confidence_map, style='random_tinted'):
         np.add.at(seg_count, flat_labels, 1)
         seg_mean = seg_rgb_sum / np.maximum(seg_count, 1)[:, None]
         vis = (np.clip(seg_mean[labels], 0, 1) * 255).astype(np.uint8)
+    elif style == 'gray_random':
+        rng = np.random.RandomState(42)
+        grays = rng.randint(80, 220, size=n_labels).astype(np.uint8)
+        g = grays[labels]
+        vis = np.stack([g, g, g], axis=2)
+    elif style == 'gray_weighted':
+        seg_conf_sum = np.zeros(n_labels, dtype=np.float64)
+        seg_count = np.zeros(n_labels, dtype=np.float64)
+        flat_labels = labels.ravel()
+        np.add.at(seg_conf_sum, flat_labels, confidence_map.ravel())
+        np.add.at(seg_count, flat_labels, 1)
+        seg_conf = seg_conf_sum / np.maximum(seg_count, 1)
+        g = (100 + seg_conf * 155).astype(np.uint8)
+        g_map = g[labels]
+        vis = np.stack([g_map, g_map, g_map], axis=2)
     else:
         rng = np.random.RandomState(42)
         colors = rng.randint(60, 220, size=(n_labels, 3)).astype(np.uint8)

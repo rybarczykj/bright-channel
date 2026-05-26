@@ -260,14 +260,14 @@ HTML = """
   <div id="colormap-section" style="display:none; margin-top: 8px;">
     <label style="font-size: 12px; color: #aaa;">Colormap</label>
     <select class="preset-select" id="colormap-select" style="margin-top: 4px;">
-      <option value="inferno">Inferno</option>
+      <option value="gray_light">Gray (light)</option>
       <option value="viridis">Viridis</option>
       <option value="magma">Magma</option>
       <option value="plasma">Plasma</option>
       <option value="hot">Hot</option>
       <option value="bone">Bone</option>
+      <option value="inferno">Inferno</option>
       <option value="grayscale">Grayscale</option>
-      <option value="gray_light">Gray (light)</option>
       <option value="gray_lighter">Gray (lighter)</option>
       <option value="gray_lightest">Gray (lightest)</option>
     </select>
@@ -278,6 +278,8 @@ HTML = """
       <option value="random_tinted">Random + confidence tint</option>
       <option value="mean_color">Mean image color</option>
       <option value="random_plain">Random (no tint)</option>
+      <option value="gray_random">Grayscale random</option>
+      <option value="gray_weighted">Grayscale weighted</option>
     </select>
   </div>
 
