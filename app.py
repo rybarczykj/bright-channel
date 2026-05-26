@@ -652,10 +652,15 @@ def render():
     elif view in ('dehazed', 'transmission', 'depth', 'depth_gray', 'dark_channel'):
         omega = 1.0 - beta
         gf_r = max(gf_radius, 1)
-        J, t_raw, t_ref, depth, A, dc = dehaze(
-            img_float, kappa=kappa, omega=omega, t0=0.1,
-            gf_radius=gf_r, gf_eps=gf_eps
-        )
+        dehaze_key = f"dehaze:{image_name}:{kappa}:{omega}:{gf_r}:{gf_eps}"
+        if dehaze_key in CACHE:
+            J, t_raw, t_ref, depth, A, dc = CACHE[dehaze_key]
+        else:
+            J, t_raw, t_ref, depth, A, dc = dehaze(
+                img_float, kappa=kappa, omega=omega, t0=0.1,
+                gf_radius=gf_r, gf_eps=gf_eps
+            )
+            CACHE[dehaze_key] = (J, t_raw, t_ref, depth, A, dc)
         if view == 'dehazed':
             if gamma != 1.0:
                 J = np.power(np.clip(J, 0, 1), gamma)
@@ -678,12 +683,16 @@ def render():
         else:
             buf = encode_png(to_u8(dc))
     elif view.startswith('seg_'):
-        bc = bright_channel(img_float, kappa)
-        bc_norm = normalize_bright_channel(bc, beta)
-        bc_ref = erode_bright_channel(bc_norm, kappa)
-
-        confidence_map, labels_vis, shadow_intensity, q_cand_map = shadow_segmentation(
-            img_float, bc_ref, felz_scale=max(kappa * 15, 50))
+        seg_key = f"seg:{image_name}:{kappa}:{beta}"
+        if seg_key in CACHE:
+            confidence_map, labels_vis, shadow_intensity, q_cand_map = CACHE[seg_key]
+        else:
+            bc = bright_channel(img_float, kappa)
+            bc_norm = normalize_bright_channel(bc, beta)
+            bc_ref = erode_bright_channel(bc_norm, kappa)
+            confidence_map, labels_vis, shadow_intensity, q_cand_map = shadow_segmentation(
+                img_float, bc_ref, felz_scale=max(kappa * 15, 50))
+            CACHE[seg_key] = (confidence_map, labels_vis, shadow_intensity, q_cand_map)
 
         if view == 'seg_confidence':
             if gamma != 1.0:
