@@ -1,0 +1,38 @@
+{
+  "float1": {
+    "kappa": "1",
+    "beta": "0.09",
+    "gf_radius": "9",
+    "gf_eps_log": "-3.2",
+    "gamma": "0.4",
+    "mode": "haze",
+    "view": "transmission"
+  },
+  "macaroni": {
+    "kappa": "1",
+    "beta": "0.48",
+    "gf_radius": "5",
+    "gf_eps_log": "1",
+    "gamma": "0.1",
+    "mode": "shadow",
+    "view": "shadow_depth_gray"
+  },
+  "memory": {
+    "kappa": "1",
+    "beta": "0.48",
+    "gf_radius": "19",
+    "gf_eps_log": "-4",
+    "gamma": "0.5",
+    "mode": "shadow",
+    "view": "mrf"
+  },
+  "float2": {
+    "kappa": "1",
+    "beta": "0.09",
+    "gf_radius": "9",
+    "gf_eps_log": "-3.2",
+    "gamma": "1.1",
+    "mode": "haze",
+    "view": "transmission"
+  }
+}
