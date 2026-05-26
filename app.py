@@ -70,6 +70,24 @@ def compute(image_name, img_float, guides, kappa, beta, gf_radius, gf_eps, mode=
     return bc_ref, mrf
 
 
+def get_seg_confidence(image_name, img_float, kappa, beta, mode):
+    seg_key = f"seg:{image_name}:{kappa}:{beta}:{mode}"
+    if seg_key in CACHE:
+        return CACHE[seg_key][0]
+    if mode == 'haze':
+        dc = dark_channel(img_float, kappa)
+        dc_norm = normalize_bright_channel(dc, beta)
+        dc_ref = erode_bright_channel(dc_norm, kappa)
+        bc_ref = 1.0 - dc_ref
+    else:
+        bc = bright_channel(img_float, kappa)
+        bc_norm = normalize_bright_channel(bc, beta)
+        bc_ref = erode_bright_channel(bc_norm, kappa)
+    result = shadow_segmentation(img_float, bc_ref, felz_scale=max(kappa * 15, 50))
+    CACHE[seg_key] = result
+    return result[0]
+
+
 def encode_png(arr):
     if arr.dtype != np.uint8:
         arr = to_u8(arr)
@@ -211,6 +229,13 @@ HTML = """
     <input type="range" id="beta" min="0.01" max="0.5" step="0.01" value="0.10">
   </div>
 
+  <div id="seg-weight-section" style="margin-bottom: 14px;">
+    <label style="font-size: 13px; cursor: pointer;">
+      <input type="checkbox" id="seg-weight" style="accent-color: #88f; margin-right: 6px;">
+      Weight by seg. confidence
+    </label>
+  </div>
+
   <div id="gf-section">
   <h2>MRF / Guided Filter</h2>
   <div class="slider-group">
@@ -324,6 +349,7 @@ HTML = """
     p['gf_eps'] = Math.pow(10, parseFloat(p['gf_eps_log']));
     if (colormapViews.has(currentView)) p['colormap'] = document.getElementById('colormap-select').value;
     if (currentView === 'seg_vis') p['segstyle'] = document.getElementById('segstyle-select').value;
+    if (document.getElementById('seg-weight').checked) p['seg_weight'] = '1';
     return p;
   }
 
@@ -350,6 +376,7 @@ HTML = """
   sliders.forEach(s => document.getElementById(s).addEventListener('input', update));
   document.getElementById('colormap-select').addEventListener('change', update);
   document.getElementById('segstyle-select').addEventListener('change', update);
+  document.getElementById('seg-weight').addEventListener('change', update);
   function bindThumbs() {
     document.querySelectorAll('.thumb').forEach(t => {
       t.addEventListener('click', () => {
@@ -365,6 +392,7 @@ HTML = """
   function updateControlVisibility() {
     const isSeg = currentView.startsWith('seg_');
     document.getElementById('gf-section').style.display = isSeg ? 'none' : '';
+    document.getElementById('seg-weight-section').style.display = isSeg ? 'none' : '';
     document.getElementById('colormap-section').style.display = colormapViews.has(currentView) ? '' : 'none';
     document.getElementById('segstyle-section').style.display = currentView === 'seg_vis' ? '' : 'none';
   }
@@ -690,6 +718,12 @@ def render():
                 gf_radius=gf_r, gf_eps=gf_eps
             )
             CACHE[dehaze_key] = (J, t_raw, t_ref, depth, A, dc)
+
+        if request.args.get('seg_weight') == '1':
+            conf = get_seg_confidence(image_name, img_float, kappa, beta, mode)
+            t_ref = t_ref * conf
+            depth = depth * conf
+
         if view == 'dehazed':
             if gamma != 1.0:
                 J = np.power(np.clip(J, 0, 1), gamma)
@@ -748,6 +782,12 @@ def render():
             buf = encode_png(to_u8(confidence_map))
     else:
         bc_ref, mrf = compute(image_name, img_float, guides, kappa, beta, gf_radius, gf_eps, mode)
+
+        if request.args.get('seg_weight') == '1':
+            conf = get_seg_confidence(image_name, img_float, kappa, beta, mode)
+            bc_ref = bc_ref * conf
+            mrf = mrf * conf
+
         if view == 'refined':
             out = np.power(np.clip(bc_ref, 0, 1), gamma) if gamma != 1.0 else bc_ref
             buf = encode_png(out)
