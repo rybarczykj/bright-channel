@@ -105,6 +105,27 @@ COLORMAPS = {
     'rainbow': cv2.COLORMAP_RAINBOW,
 }
 
+def _build_lut(colors):
+    """Interpolate a list of RGB colors into a 256-entry LUT."""
+    colors = np.array(colors, dtype=np.float64)
+    n = len(colors)
+    lut = np.zeros((256, 3), dtype=np.uint8)
+    for i in range(256):
+        t = i / 255.0 * (n - 1)
+        idx = min(int(t), n - 2)
+        frac = t - idx
+        lut[i] = (colors[idx] * (1 - frac) + colors[idx + 1] * frac).astype(np.uint8)
+    return lut
+
+
+CUSTOM_LUTS = {
+    'junior_senior': _build_lut([
+        [20, 20, 20], [200, 30, 180], [255, 60, 30], [255, 220, 0],
+        [0, 220, 100], [0, 180, 255], [180, 130, 255], [255, 255, 255],
+    ]),
+}
+
+
 GRAY_RANGES = {
     'grayscale': (0, 255),
     'gray_light': (100, 255),
@@ -118,6 +139,10 @@ def apply_colormap(gray, name='inferno'):
     if name in GRAY_RANGES:
         lo, hi = GRAY_RANGES[name]
         return np.clip(lo + (u8.astype(np.float32) / 255.0) * (hi - lo), 0, 255).astype(np.uint8)
+    if name in CUSTOM_LUTS:
+        lut = CUSTOM_LUTS[name]
+        rgb = lut[u8]
+        return rgb[:, :, ::-1]  # RGB -> BGR for OpenCV
     return cv2.applyColorMap(u8, COLORMAPS.get(name, cv2.COLORMAP_INFERNO))
 
 
@@ -305,6 +330,7 @@ HTML = """
       <option value="hot">Hot</option>
       <option value="bone">Bone</option>
       <option value="rainbow">Rainbow</option>
+      <option value="junior_senior">Junior Senior</option>
       <option value="inferno">Inferno</option>
       <option value="grayscale">Grayscale</option>
       <option value="gray_lighter">Gray (lighter)</option>
