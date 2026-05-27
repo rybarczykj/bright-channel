@@ -343,6 +343,7 @@ HTML = """
     <label>Epsilon (log) <span id="v-gf_eps_log">0.0010</span></label>
     <input type="range" id="gf_eps_log" min="-4" max="1" step="0.1" value="-3">
   </div>
+  <div id="dehaze-options">
   <div style="margin-top: 6px;">
     <label style="font-size: 13px; cursor: pointer;">
       <input type="checkbox" id="color-guide" checked style="accent-color: #88f; margin-right: 6px;">
@@ -354,6 +355,7 @@ HTML = """
       <input type="checkbox" id="soft-matting" style="accent-color: #88f; margin-right: 6px;">
       Soft matting (slow, sharp)
     </label>
+  </div>
   </div>
   </div>
 
@@ -516,9 +518,14 @@ HTML = """
   }
   bindThumbs();
 
+  const noGfViews = new Set(['seg_confidence', 'seg_vis', 'seg_shadow', 'seg_qcand', 'refined', 'dark_channel', 'original']);
+  const hazeOnlyViews = new Set(['dehazed', 'transmission', 'depth', 'dark_channel']);
+
   function updateControlVisibility() {
-    const isSeg = currentView.startsWith('seg_');
-    document.getElementById('gf-section').style.display = isSeg ? 'none' : '';
+    const showGf = !noGfViews.has(currentView);
+    const showDehaze = showGf && currentMode === 'haze' && hazeOnlyViews.has(currentView);
+    document.getElementById('gf-section').style.display = showGf ? '' : 'none';
+    document.getElementById('dehaze-options').style.display = showDehaze ? '' : 'none';
     document.getElementById('colormap-section').style.display = colormapViews.has(currentView) ? '' : 'none';
     document.getElementById('segstyle-section').style.display = currentView === 'seg_vis' ? '' : 'none';
   }
@@ -690,6 +697,7 @@ HTML = """
     }
   });
 
+  updateControlVisibility();
   update();
 
   setInterval(async () => {
