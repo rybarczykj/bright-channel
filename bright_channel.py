@@ -44,9 +44,11 @@ def estimate_transmission(img_float, A, kappa=15, omega=0.95):
     return t
 
 
-def refine_transmission(img_float, t, radius=40, eps=0.001):
-    """Refine transmission with guided filter using original color image as guide."""
+def refine_transmission(img_float, t, radius=40, eps=0.001, color_guide=True):
+    """Refine transmission with guided filter."""
     guide = img_float.astype(np.float32)
+    if not color_guide and guide.ndim == 3:
+        guide = cv2.cvtColor((guide * 255).astype(np.uint8), cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
     t_f32 = t.astype(np.float32)
     t_refined = cv2.ximgproc.guidedFilter(guide, t_f32, radius=radius, eps=eps)
     return np.clip(t_refined.astype(np.float64), 0, 1)
@@ -66,13 +68,13 @@ def transmission_to_depth(t):
     return depth
 
 
-def dehaze(img_float, kappa=15, omega=0.95, t0=0.1, gf_radius=40, gf_eps=0.001):
+def dehaze(img_float, kappa=15, omega=0.95, t0=0.1, gf_radius=40, gf_eps=0.001, color_guide=True):
     """Full He et al. dehazing pipeline. Returns dehazed image, transmission,
     depth map, and atmospheric light."""
     dc = dark_channel(img_float, kappa)
     A = estimate_atmospheric_light(img_float, dc)
     t_raw = estimate_transmission(img_float, A, kappa, omega)
-    t_refined = refine_transmission(img_float, t_raw, gf_radius, gf_eps)
+    t_refined = refine_transmission(img_float, t_raw, gf_radius, gf_eps, color_guide)
     J = recover_scene(img_float, A, t_refined, t0)
     depth = transmission_to_depth(t_refined)
     return J, t_raw, t_refined, depth, A, dc

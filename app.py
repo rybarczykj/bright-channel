@@ -246,6 +246,12 @@ HTML = """
     <label>Epsilon (log) <span id="v-gf_eps_log">0.0010</span></label>
     <input type="range" id="gf_eps_log" min="-4" max="1" step="0.1" value="-3">
   </div>
+  <div style="margin-top: 6px;">
+    <label style="font-size: 13px; cursor: pointer;">
+      <input type="checkbox" id="color-guide" checked style="accent-color: #88f; margin-right: 6px;">
+      Color guide (He et al.)
+    </label>
+  </div>
   </div>
 
   <h2>Output</h2>
@@ -350,6 +356,7 @@ HTML = """
     if (colormapViews.has(currentView)) p['colormap'] = document.getElementById('colormap-select').value;
     if (currentView === 'seg_vis') p['segstyle'] = document.getElementById('segstyle-select').value;
     if (document.getElementById('seg-weight').checked) p['seg_weight'] = '1';
+    p['color_guide'] = document.getElementById('color-guide').checked ? '1' : '0';
     return p;
   }
 
@@ -377,6 +384,7 @@ HTML = """
   document.getElementById('colormap-select').addEventListener('change', update);
   document.getElementById('segstyle-select').addEventListener('change', update);
   document.getElementById('seg-weight').addEventListener('change', update);
+  document.getElementById('color-guide').addEventListener('change', update);
   function bindThumbs() {
     document.querySelectorAll('.thumb').forEach(t => {
       t.addEventListener('click', () => {
@@ -445,6 +453,7 @@ HTML = """
     sliders.forEach(s => {
       if (preset[s] !== undefined) document.getElementById(s).value = preset[s];
     });
+    document.getElementById('color-guide').checked = preset.color_guide === '1';
     updateControlVisibility();
     update();
   }
@@ -478,6 +487,7 @@ HTML = """
     sliders.forEach(s => params[s] = document.getElementById(s).value);
     params.mode = currentMode;
     params.view = currentView;
+    params.color_guide = document.getElementById('color-guide').checked ? '1' : '0';
     await fetch('/presets/save', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -698,6 +708,7 @@ def render():
     gf_eps = float(request.args.get('gf_eps', 0.01))
     mode = request.args.get('mode', 'shadow')
     cmap = request.args.get('colormap', 'inferno')
+    color_guide = request.args.get('color_guide', '1') == '1'
 
     data = load_image(image_path)
     if data is None:
@@ -709,13 +720,13 @@ def render():
     elif view in ('dehazed', 'transmission', 'depth', 'depth_gray', 'dark_channel'):
         omega = 1.0 - beta
         gf_r = max(gf_radius, 1)
-        dehaze_key = f"dehaze:{image_name}:{kappa}:{omega}:{gf_r}:{gf_eps}"
+        dehaze_key = f"dehaze:{image_name}:{kappa}:{omega}:{gf_r}:{gf_eps}:{color_guide}"
         if dehaze_key in CACHE:
             J, t_raw, t_ref, depth, A, dc = CACHE[dehaze_key]
         else:
             J, t_raw, t_ref, depth, A, dc = dehaze(
                 img_float, kappa=kappa, omega=omega, t0=0.1,
-                gf_radius=gf_r, gf_eps=gf_eps
+                gf_radius=gf_r, gf_eps=gf_eps, color_guide=color_guide
             )
             CACHE[dehaze_key] = (J, t_raw, t_ref, depth, A, dc)
 
