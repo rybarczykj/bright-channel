@@ -45,14 +45,10 @@ def estimate_transmission(img_float, A, kappa=15, omega=0.95):
 
 
 def refine_transmission(img_float, t, radius=40, eps=0.001):
-    """Refine transmission with guided filter using original image as guide."""
+    """Refine transmission with guided filter using original color image as guide."""
     guide = img_float.astype(np.float32)
-    if guide.ndim == 3:
-        guide_gray = cv2.cvtColor((guide * 255).astype(np.uint8), cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
-    else:
-        guide_gray = guide
     t_f32 = t.astype(np.float32)
-    t_refined = cv2.ximgproc.guidedFilter(guide_gray, t_f32, radius=radius, eps=eps)
+    t_refined = cv2.ximgproc.guidedFilter(guide, t_f32, radius=radius, eps=eps)
     return np.clip(t_refined.astype(np.float64), 0, 1)
 
 
