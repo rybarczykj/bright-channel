@@ -380,6 +380,11 @@ HTML = """
 <div class="controls">
   <div class="section">
     <div class="section-header">Image</div>
+    <label class="btn" style="text-align:center; cursor:pointer; margin-bottom:6px; display:block;">
+      Upload image
+      <input type="file" id="file-upload" accept="image/*" style="display:none;" multiple>
+    </label>
+    <div style="font-size:9px; color:#555; margin-bottom:6px;">or drop anywhere on the page</div>
     <select id="image-select">
       {% for img in images %}
       <option value="{{ img }}">{{ img }}</option>
@@ -516,16 +521,6 @@ HTML = """
     <div class="timing" id="timing"></div>
   </div>
 
-  <div class="section">
-    <div class="section-header">Presets</div>
-    <select id="preset-select">
-      <option value="">-- select --</option>
-    </select>
-    <div style="display: flex; gap: 4px; margin-top: 4px;">
-      <button class="btn primary" id="save-preset-btn" style="flex:1">Save</button>
-      <button class="btn danger" id="delete-preset-btn">Delete</button>
-    </div>
-  </div>
 </div>
 
 <div class="drop-overlay" id="drop-overlay">Drop image here</div>
@@ -691,85 +686,7 @@ HTML = """
     });
   });
 
-  // Presets (server-backed, saved to presets.json)
-  function applyPreset(preset) {
-    if (preset.mode) {
-      currentMode = preset.mode;
-      document.querySelectorAll('button[data-mode]').forEach(b => b.classList.remove('active'));
-      const modeBtn = document.querySelector(`button[data-mode="${currentMode}"]`);
-      if (modeBtn) modeBtn.classList.add('active');
-      document.getElementById('shadow-views').style.display = currentMode === 'shadow' ? '' : 'none';
-      document.getElementById('haze-views').style.display = currentMode === 'haze' ? '' : 'none';
-      document.getElementById('seg-map-label').textContent = currentMode === 'haze' ? 'Haze Map' : 'Shadow Map';
-      document.getElementById('detection-header').textContent = currentMode === 'haze' ? 'Haze Detection' : 'Shadow Detection';
-    }
-    if (preset.view) {
-      currentView = preset.view;
-      document.querySelectorAll('#view-toggle button[data-view]').forEach(b => b.classList.remove('active'));
-      const viewBtn = document.querySelector(`button[data-view="${currentView}"]`);
-      if (viewBtn) viewBtn.classList.add('active');
-    }
-    sliders.forEach(s => {
-      if (preset[s] !== undefined) document.getElementById(s).value = preset[s];
-    });
-    document.getElementById('color-guide').checked = preset.color_guide === '1';
-    document.getElementById('soft-matting').checked = preset.soft_matting === '1';
-    updateControlVisibility();
-    update();
-  }
 
-  async function refreshPresetSelect() {
-    const res = await fetch('/presets');
-    const presets = await res.json();
-    const sel = document.getElementById('preset-select');
-    const prev = sel.value;
-    sel.innerHTML = '<option value="">— select preset —</option>';
-    Object.keys(presets).sort().forEach(name => {
-      const opt = document.createElement('option');
-      opt.value = name; opt.textContent = name;
-      sel.appendChild(opt);
-    });
-    if (prev && presets[prev]) sel.value = prev;
-    return presets;
-  }
-
-  document.getElementById('preset-select').addEventListener('change', async (e) => {
-    if (!e.target.value) return;
-    const res = await fetch('/presets');
-    const presets = await res.json();
-    if (presets[e.target.value]) applyPreset(presets[e.target.value]);
-  });
-
-  document.getElementById('save-preset-btn').addEventListener('click', async () => {
-    const name = prompt('Preset name:');
-    if (!name) return;
-    const params = {};
-    sliders.forEach(s => params[s] = document.getElementById(s).value);
-    params.mode = currentMode;
-    params.view = currentView;
-    params.color_guide = document.getElementById('color-guide').checked ? '1' : '0';
-    params.soft_matting = document.getElementById('soft-matting').checked ? '1' : '0';
-    await fetch('/presets/save', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name, params})
-    });
-    await refreshPresetSelect();
-    document.getElementById('preset-select').value = name;
-  });
-
-  document.getElementById('delete-preset-btn').addEventListener('click', async () => {
-    const sel = document.getElementById('preset-select');
-    if (!sel.value) return;
-    await fetch('/presets/delete', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name: sel.value})
-    });
-    await refreshPresetSelect();
-  });
-
-  refreshPresetSelect();
 
   // Export: trigger browser download
   document.getElementById('save-btn').addEventListener('click', () => {
@@ -793,11 +710,7 @@ HTML = """
     if (dragCounter <= 0) { dragCounter = 0; overlay.classList.remove('active'); }
   });
   document.addEventListener('dragover', (e) => e.preventDefault());
-  document.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    dragCounter = 0;
-    overlay.classList.remove('active');
-    const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+  async function uploadFiles(files) {
     for (const file of files) {
       const form = new FormData();
       form.append('file', file);
@@ -809,8 +722,6 @@ HTML = """
         opt.value = data.name; opt.textContent = data.name;
         sel.appendChild(opt);
         sel.value = data.name;
-
-        // Add thumbnail immediately
         const list = document.getElementById('image-list');
         document.querySelectorAll('.thumb').forEach(x => x.classList.remove('active'));
         const div = document.createElement('div');
@@ -820,10 +731,21 @@ HTML = """
         list.appendChild(div);
         bindThumbs();
         list.scrollTop = list.scrollHeight;
-
         update();
       }
     }
+  }
+
+  document.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    overlay.classList.remove('active');
+    await uploadFiles([...e.dataTransfer.files].filter(f => f.type.startsWith('image/')));
+  });
+
+  document.getElementById('file-upload').addEventListener('change', async (e) => {
+    await uploadFiles([...e.target.files]);
+    e.target.value = '';
   });
 
   updateControlVisibility();
