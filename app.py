@@ -225,8 +225,8 @@ HTML = """
     <input type="range" id="kappa" min="1" max="81" step="2" value="15">
   </div>
   <div class="slider-group">
-    <label>Beta (normalize %) <span id="v-beta">0.10</span></label>
-    <input type="range" id="beta" min="0.01" max="0.5" step="0.01" value="0.10">
+    <label>Beta (normalize %) <span id="v-beta">0.05</span></label>
+    <input type="range" id="beta" min="0.01" max="0.5" step="0.01" value="0.05">
   </div>
 
   <div id="seg-weight-section" style="margin-bottom: 14px;">
@@ -239,12 +239,12 @@ HTML = """
   <div id="gf-section">
   <h2>MRF / Guided Filter</h2>
   <div class="slider-group">
-    <label>Radius <span id="v-gf_radius">8</span></label>
-    <input type="range" id="gf_radius" min="0" max="40" step="1" value="8">
+    <label>Radius <span id="v-gf_radius">40</span></label>
+    <input type="range" id="gf_radius" min="0" max="80" step="1" value="40">
   </div>
   <div class="slider-group">
-    <label>Epsilon (log) <span id="v-gf_eps_log">0.0100</span></label>
-    <input type="range" id="gf_eps_log" min="-4" max="1" step="0.1" value="-2">
+    <label>Epsilon (log) <span id="v-gf_eps_log">0.0010</span></label>
+    <input type="range" id="gf_eps_log" min="-4" max="1" step="0.1" value="-3">
   </div>
   </div>
 
