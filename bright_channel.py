@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 from pathlib import Path
 from scipy import sparse
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import cg
 from skimage.segmentation import felzenszwalb
 from sklearn.mixture import GaussianMixture
 
@@ -60,49 +60,85 @@ MATTING_PROGRESS = {'pct': 0, 'stage': ''}
 
 
 def _matting_laplacian(img, win_size=1, eps=1e-7):
-    """Levin et al. closed-form matting Laplacian (sparse)."""
+    """Levin et al. closed-form matting Laplacian (vectorized)."""
     h, w, c = img.shape
     n = h * w
     win = 2 * win_size + 1
     nwin = win * win
 
-    row_idx = []
-    col_idx = []
-    vals = []
+    MATTING_PROGRESS['stage'] = 'Extracting patches'
+    MATTING_PROGRESS['pct'] = 5
 
-    total_rows = h - 2 * win_size
-    MATTING_PROGRESS['stage'] = 'Building Laplacian'
+    # Extract all patches: (num_patches_y, num_patches_x, win, win, c)
+    patches = np.lib.stride_tricks.sliding_window_view(img, (win, win, c)).squeeze(axis=2)
+    ph, pw = patches.shape[0], patches.shape[1]
+    N = ph * pw
+    # Reshape to (N, nwin, c)
+    P = patches.reshape(N, nwin, c).astype(np.float64)
 
-    for yi in range(win_size, h - win_size):
-        if (yi - win_size) % 10 == 0:
-            MATTING_PROGRESS['pct'] = int(80 * (yi - win_size) / total_rows)
+    MATTING_PROGRESS['stage'] = 'Computing covariances'
+    MATTING_PROGRESS['pct'] = 15
 
-        for xi in range(win_size, w - win_size):
-            patch = img[yi - win_size:yi + win_size + 1,
-                        xi - win_size:xi + win_size + 1].reshape(nwin, c)
-            mu = patch.mean(axis=0)
-            cov = patch.T @ patch / nwin - np.outer(mu, mu)
-            cov_inv = np.linalg.inv(cov + eps / nwin * np.eye(c))
+    mu = P.mean(axis=1)  # (N, c)
+    P_centered = P - mu[:, None, :]  # (N, nwin, c)
 
-            patch_centered = patch - mu
-            term = patch_centered @ cov_inv @ patch_centered.T
-            win_vals = (np.eye(nwin) - (1.0 + term) / nwin)
+    # Covariance: (N, c, c)
+    cov = np.einsum('npc,npd->ncd', P_centered, P_centered) / nwin
+    cov += (eps / nwin) * np.eye(c)[None]
 
-            ys = np.arange(yi - win_size, yi + win_size + 1)
-            xs = np.arange(xi - win_size, xi + win_size + 1)
-            yy, xx = np.meshgrid(ys, xs, indexing='ij')
-            indices = (yy.ravel() * w + xx.ravel())
+    MATTING_PROGRESS['stage'] = 'Inverting covariances'
+    MATTING_PROGRESS['pct'] = 30
 
-            for i in range(nwin):
-                for j in range(nwin):
-                    if abs(win_vals[i, j]) > 1e-10:
-                        row_idx.append(indices[i])
-                        col_idx.append(indices[j])
-                        vals.append(win_vals[i, j])
+    cov_inv = np.linalg.inv(cov)  # (N, c, c)
+
+    MATTING_PROGRESS['stage'] = 'Computing window values'
+    MATTING_PROGRESS['pct'] = 40
+
+    # term[n, i, j] = P_centered[n,i,:] @ cov_inv[n] @ P_centered[n,j,:]^T
+    tmp = np.einsum('npc,ncd->npd', P_centered, cov_inv)  # (N, nwin, c)
+    term = np.einsum('npc,nqc->npq', tmp, P_centered)  # (N, nwin, nwin)
+
+    eye = np.eye(nwin)[None]  # (1, nwin, nwin)
+    win_vals = eye - (1.0 + term) / nwin  # (N, nwin, nwin)
+
+    MATTING_PROGRESS['stage'] = 'Building sparse indices'
+    MATTING_PROGRESS['pct'] = 60
+
+    # Build pixel indices for each patch
+    yi_range = np.arange(win_size, h - win_size)
+    xi_range = np.arange(win_size, w - win_size)
+    yi_grid, xi_grid = np.meshgrid(yi_range, xi_range, indexing='ij')
+    # For each patch center, compute the win*win pixel indices
+    dy, dx = np.meshgrid(np.arange(-win_size, win_size + 1),
+                         np.arange(-win_size, win_size + 1), indexing='ij')
+    dy = dy.ravel()  # (nwin,)
+    dx = dx.ravel()
+
+    centers_y = yi_grid.ravel()  # (N,)
+    centers_x = xi_grid.ravel()
+    # pixel indices: (N, nwin)
+    pix_y = centers_y[:, None] + dy[None, :]
+    pix_x = centers_x[:, None] + dx[None, :]
+    pix_idx = pix_y * w + pix_x  # (N, nwin)
+
+    # Build COO sparse matrix
+    row_all = np.repeat(pix_idx, nwin, axis=1)  # (N, nwin*nwin)
+    col_all = np.tile(pix_idx, (1, nwin)).reshape(N, nwin, nwin).transpose(0, 2, 1).reshape(N, nwin * nwin)
+
+    # Wait — simpler: for each patch n, row[i]*nwin+j maps to (pix_idx[n,i], pix_idx[n,j])
+    ri = np.repeat(pix_idx[:, :, None], nwin, axis=2)  # (N, nwin, nwin)
+    ci = np.repeat(pix_idx[:, None, :], nwin, axis=1)  # (N, nwin, nwin)
+
+    MATTING_PROGRESS['stage'] = 'Assembling matrix'
+    MATTING_PROGRESS['pct'] = 75
+
+    mask = np.abs(win_vals) > 1e-10
+    rows = ri[mask]
+    cols = ci[mask]
+    vals = win_vals[mask]
 
     MATTING_PROGRESS['pct'] = 80
-    MATTING_PROGRESS['stage'] = 'Assembling matrix'
-    L = sparse.csr_matrix((vals, (row_idx, col_idx)), shape=(n, n))
+    L = sparse.csr_matrix((vals, (rows, cols)), shape=(n, n))
     return L
 
 
@@ -115,11 +151,11 @@ def refine_transmission_matting(img_float, t, lam=1e-4):
     n = h * w
     L = _matting_laplacian(img_float, win_size=1)
     MATTING_PROGRESS['pct'] = 85
-    MATTING_PROGRESS['stage'] = 'Solving linear system'
+    MATTING_PROGRESS['stage'] = 'Solving (conjugate gradient)'
     I_sp = sparse.eye(n)
     A = L + lam * I_sp
     b = lam * t.ravel()
-    x = spsolve(A, b)
+    x, _ = cg(A, b, x0=t.ravel(), rtol=1e-5, maxiter=500)
     MATTING_PROGRESS['pct'] = 100
     MATTING_PROGRESS['stage'] = 'Done'
     return np.clip(x.reshape(h, w), 0, 1)
