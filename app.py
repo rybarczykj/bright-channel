@@ -432,13 +432,13 @@ HTML = """
   </div>
 
   <div class="section">
-    <div class="section-header">Channel</div>
+    <div class="section-header" id="detection-header">Haze Detection</div>
     <div class="slider-group">
-      <label>patch size (kappa) <span id="v-kappa">15</span></label>
+      <label>patch size <span id="v-kappa">15</span></label>
       <input type="range" id="kappa" min="1" max="81" step="2" value="15">
     </div>
     <div class="slider-group">
-      <label>beta (normalize %) <span id="v-beta">0.05</span></label>
+      <label>brightness cutoff <span id="v-beta">0.05</span></label>
       <input type="range" id="beta" min="0.01" max="0.5" step="0.01" value="0.05">
     </div>
   </div>
@@ -646,6 +646,7 @@ HTML = """
       document.getElementById(hideId).style.display = 'none';
       document.getElementById(showId).style.display = '';
       document.getElementById('seg-map-label').textContent = currentMode === 'haze' ? 'Haze Map' : 'Shadow Map';
+      document.getElementById('detection-header').textContent = currentMode === 'haze' ? 'Haze Detection' : 'Shadow Detection';
       const hasView = document.querySelector(`#view-toggle button[data-view="${currentView}"]`);
       const inHidden = document.querySelector(`#${hideId} button[data-view="${currentView}"]`);
       if (inHidden && !document.querySelector(`#${showId} button[data-view="${currentView}"]`)) {
@@ -669,6 +670,7 @@ HTML = """
       document.getElementById('shadow-views').style.display = currentMode === 'shadow' ? '' : 'none';
       document.getElementById('haze-views').style.display = currentMode === 'haze' ? '' : 'none';
       document.getElementById('seg-map-label').textContent = currentMode === 'haze' ? 'Haze Map' : 'Shadow Map';
+      document.getElementById('detection-header').textContent = currentMode === 'haze' ? 'Haze Detection' : 'Shadow Detection';
     }
     if (preset.view) {
       currentView = preset.view;
