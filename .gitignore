@@ -9,3 +9,8 @@ wheels/
 # Virtual environments
 .venv
 *.DS_Store
+
+# Eval artifacts
+data/eval_*
+data/tiananmen_og*
+data/Screenshot*

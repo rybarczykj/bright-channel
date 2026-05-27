@@ -1,4 +1,5 @@
 import io
+import json
 import cv2
 import numpy as np
 from flask import Flask, render_template_string, request, send_file, jsonify
@@ -10,7 +11,7 @@ pillow_heif.register_heif_opener()
 from bright_channel import (
     bright_channel, dark_channel, normalize_bright_channel, erode_bright_channel,
     compute_illumination_invariants, dehaze, to_u8, shadow_segmentation,
-    colorize_segments, MATTING_PROGRESS
+    colorize_segments, transmission_to_depth, MATTING_PROGRESS
 )
 
 app = Flask(__name__)
@@ -18,19 +19,20 @@ app = Flask(__name__)
 CACHE = {}
 
 
-def load_image(path, max_dim=1200):
+def load_image(path, max_dim=None):
     key = f"img:{path}:{max_dim}"
     if key in CACHE:
         return CACHE[key]
 
     img = cv2.imread(str(path))
     if img is None:
-        return None, None
+        return None
 
-    h, w = img.shape[:2]
-    scale = min(max_dim / max(h, w), 1.0)
-    if scale < 1.0:
-        img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+    if max_dim is not None:
+        h, w = img.shape[:2]
+        scale = min(max_dim / max(h, w), 1.0)
+        if scale < 1.0:
+            img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
 
     img_float = img.astype(np.float64) / 255.0
 
@@ -68,6 +70,109 @@ def compute(image_name, img_float, guides, kappa, beta, gf_radius, gf_eps, mode=
 
     CACHE[cache_key] = (bc_ref, mrf)
     return bc_ref, mrf
+
+
+def render_view(image_name, img, img_float, guides, view, kappa, beta, gamma,
+                gf_radius, gf_eps, mode, cmap, color_guide, soft_matting, seg_weight,
+                segstyle='random_tinted'):
+    """Render a view and return a numpy uint8 image (BGR)."""
+
+    if view == 'original':
+        return img
+
+    if view in ('dehazed', 'transmission', 'depth', 'depth_gray', 'dark_channel'):
+        omega = 1.0 - beta
+        gf_r = max(gf_radius, 1)
+        dehaze_key = f"dehaze:{image_name}:{kappa}:{omega}:{gf_r}:{gf_eps}:{color_guide}:{soft_matting}"
+        if dehaze_key in CACHE:
+            J, t_raw, t_ref, depth, A, dc = CACHE[dehaze_key]
+        else:
+            J, t_raw, t_ref, depth, A, dc = dehaze(
+                img_float, kappa=kappa, omega=omega, t0=0.1,
+                gf_radius=gf_r, gf_eps=gf_eps, color_guide=color_guide,
+                use_matting=soft_matting
+            )
+            CACHE[dehaze_key] = (J, t_raw, t_ref, depth, A, dc)
+
+        if seg_weight:
+            conf = get_seg_confidence(image_name, img_float, kappa, beta, mode)
+            t_ref = t_ref * conf
+            depth = depth * conf
+
+        if view == 'dehazed':
+            out = np.power(np.clip(J, 0, 1), gamma) if gamma != 1.0 else J
+            return to_u8(out)
+        elif view == 'transmission':
+            out = np.power(np.clip(t_ref, 0, 1), gamma) if gamma != 1.0 else t_ref
+            return to_u8(out)
+        elif view == 'depth':
+            d = np.power(np.clip(depth, 0, 1), gamma) if gamma != 1.0 else depth
+            return apply_colormap(d, cmap)
+        elif view == 'depth_gray':
+            d = np.power(np.clip(depth, 0, 1), gamma) if gamma != 1.0 else depth
+            return to_u8(d)
+        else:
+            return to_u8(dc)
+
+    if view.startswith('seg_'):
+        seg_key = f"seg:{image_name}:{kappa}:{beta}:{mode}"
+        if seg_key in CACHE:
+            confidence_map, seg_labels, shadow_intensity, q_cand_map = CACHE[seg_key]
+        else:
+            if mode == 'haze':
+                dc = dark_channel(img_float, kappa)
+                dc_norm = normalize_bright_channel(dc, beta)
+                dc_ref = erode_bright_channel(dc_norm, kappa)
+                bc_ref = 1.0 - dc_ref
+            else:
+                bc = bright_channel(img_float, kappa)
+                bc_norm = normalize_bright_channel(bc, beta)
+                bc_ref = erode_bright_channel(bc_norm, kappa)
+            confidence_map, seg_labels, shadow_intensity, q_cand_map = shadow_segmentation(
+                img_float, bc_ref, felz_scale=max(kappa * 15, 50))
+            CACHE[seg_key] = (confidence_map, seg_labels, shadow_intensity, q_cand_map)
+
+        if view == 'seg_confidence':
+            v = np.power(np.clip(confidence_map, 0, 1), gamma) if gamma != 1.0 else confidence_map
+            return apply_colormap(v, cmap)
+        elif view == 'seg_vis':
+            return colorize_segments(img_float, seg_labels, confidence_map, segstyle)
+        elif view == 'seg_shadow':
+            v = np.power(np.clip(shadow_intensity, 0, 1), gamma) if gamma != 1.0 else shadow_intensity
+            return to_u8(v)
+        elif view == 'seg_qcand':
+            v = np.power(np.clip(q_cand_map, 0, 1), gamma) if gamma != 1.0 else q_cand_map
+            return apply_colormap(v, cmap)
+        else:
+            return to_u8(confidence_map)
+
+    # Shadow/haze MRF views
+    bc_ref, mrf = compute(image_name, img_float, guides, kappa, beta, gf_radius, gf_eps, mode)
+
+    if seg_weight:
+        conf = get_seg_confidence(image_name, img_float, kappa, beta, mode)
+        bc_ref = bc_ref * conf
+        mrf = mrf * conf
+
+    if view == 'refined':
+        out = np.power(np.clip(bc_ref, 0, 1), gamma) if gamma != 1.0 else bc_ref
+        return to_u8(out)
+    elif view in ('shadow_depth', 'shadow_depth_gray'):
+        d = transmission_to_depth(mrf)
+        if gamma != 1.0:
+            d = np.power(np.clip(d, 0, 1), gamma)
+        if view == 'shadow_depth':
+            return apply_colormap(d, cmap)
+        return to_u8(d)
+    elif view == 'albedo':
+        illum = np.maximum(mrf, 0.05)
+        albedo = np.clip(img_float / illum[:, :, None], 0, 1)
+        if gamma != 1.0:
+            albedo = np.power(albedo, gamma)
+        return to_u8(albedo)
+    else:
+        out = np.power(np.clip(mrf, 0, 1), gamma) if gamma != 1.0 else mrf
+        return to_u8(out)
 
 
 def get_seg_confidence(image_name, img_float, kappa, beta, mode):
@@ -688,13 +793,11 @@ PRESETS_FILE = Path(__file__).parent / "presets.json"
 
 def load_presets():
     if PRESETS_FILE.exists():
-        import json
         return json.loads(PRESETS_FILE.read_text())
     return {}
 
 
 def save_presets_file(presets):
-    import json
     PRESETS_FILE.write_text(json.dumps(presets, indent=2))
 
 
@@ -760,248 +863,60 @@ def images_list():
     return jsonify([p.name for p in list_images()])
 
 
+def _parse_render_params():
+    """Parse common render parameters from request args."""
+    imgs = list_images()
+    return {
+        'image_name': request.args.get('image', imgs[0].name if imgs else ''),
+        'view': request.args.get('view', 'mrf'),
+        'kappa': int(request.args.get('kappa', 15)),
+        'beta': float(request.args.get('beta', 0.1)),
+        'gamma': float(request.args.get('gamma', 1.0)),
+        'gf_radius': int(request.args.get('gf_radius', 8)),
+        'gf_eps': float(request.args.get('gf_eps', 0.01)),
+        'mode': request.args.get('mode', 'shadow'),
+        'cmap': request.args.get('colormap', 'inferno'),
+        'color_guide': request.args.get('color_guide', '1') == '1',
+        'soft_matting': request.args.get('soft_matting') == '1',
+        'seg_weight': request.args.get('seg_weight') == '1',
+        'segstyle': request.args.get('segstyle', 'random_tinted'),
+    }
+
+
 @app.route('/render')
 def render():
-    imgs = list_images()
-    image_name = request.args.get('image', imgs[0].name if imgs else '')
-    image_path = DATA_DIR / image_name
-    view = request.args.get('view', 'mrf')
+    p = _parse_render_params()
+    image_path = DATA_DIR / p['image_name']
 
-    kappa = int(request.args.get('kappa', 15))
-    beta = float(request.args.get('beta', 0.1))
-    gamma = float(request.args.get('gamma', 1.0))
-    gf_radius = int(request.args.get('gf_radius', 8))
-    gf_eps = float(request.args.get('gf_eps', 0.01))
-    mode = request.args.get('mode', 'shadow')
-    cmap = request.args.get('colormap', 'inferno')
-    color_guide = request.args.get('color_guide', '1') == '1'
-    soft_matting = request.args.get('soft_matting') == '1'
-
-    data = load_image(image_path)
+    data = load_image(image_path, max_dim=1200)
     if data is None:
         return "Image not found", 404
     img, img_float, guides = data
 
-    if view == 'original':
-        buf = encode_png(img)
-    elif view in ('dehazed', 'transmission', 'depth', 'depth_gray', 'dark_channel'):
-        omega = 1.0 - beta
-        gf_r = max(gf_radius, 1)
-        dehaze_key = f"dehaze:{image_name}:{kappa}:{omega}:{gf_r}:{gf_eps}:{color_guide}:{soft_matting}"
-        if dehaze_key in CACHE:
-            J, t_raw, t_ref, depth, A, dc = CACHE[dehaze_key]
-        else:
-            J, t_raw, t_ref, depth, A, dc = dehaze(
-                img_float, kappa=kappa, omega=omega, t0=0.1,
-                gf_radius=gf_r, gf_eps=gf_eps, color_guide=color_guide,
-                use_matting=soft_matting
-            )
-            CACHE[dehaze_key] = (J, t_raw, t_ref, depth, A, dc)
-
-        if request.args.get('seg_weight') == '1':
-            conf = get_seg_confidence(image_name, img_float, kappa, beta, mode)
-            t_ref = t_ref * conf
-            depth = depth * conf
-
-        if view == 'dehazed':
-            if gamma != 1.0:
-                J = np.power(np.clip(J, 0, 1), gamma)
-            buf = encode_png(to_u8(J))
-        elif view == 'transmission':
-            t_vis = t_ref
-            if gamma != 1.0:
-                t_vis = np.power(np.clip(t_vis, 0, 1), gamma)
-            buf = encode_png(to_u8(t_vis))
-        elif view == 'depth':
-            d = depth
-            if gamma != 1.0:
-                d = np.power(np.clip(d, 0, 1), gamma)
-            buf = encode_png(apply_colormap(d, cmap))
-        elif view == 'depth_gray':
-            d = depth
-            if gamma != 1.0:
-                d = np.power(np.clip(d, 0, 1), gamma)
-            buf = encode_png(to_u8(d))
-        else:
-            buf = encode_png(to_u8(dc))
-    elif view.startswith('seg_'):
-        seg_key = f"seg:{image_name}:{kappa}:{beta}:{mode}"
-        if seg_key in CACHE:
-            confidence_map, seg_labels, shadow_intensity, q_cand_map = CACHE[seg_key]
-        else:
-            if mode == 'haze':
-                dc = dark_channel(img_float, kappa)
-                dc_norm = normalize_bright_channel(dc, beta)
-                dc_ref = erode_bright_channel(dc_norm, kappa)
-                bc_ref = 1.0 - dc_ref
-            else:
-                bc = bright_channel(img_float, kappa)
-                bc_norm = normalize_bright_channel(bc, beta)
-                bc_ref = erode_bright_channel(bc_norm, kappa)
-            confidence_map, seg_labels, shadow_intensity, q_cand_map = shadow_segmentation(
-                img_float, bc_ref, felz_scale=max(kappa * 15, 50))
-            CACHE[seg_key] = (confidence_map, seg_labels, shadow_intensity, q_cand_map)
-
-        if view == 'seg_confidence':
-            if gamma != 1.0:
-                confidence_map = np.power(np.clip(confidence_map, 0, 1), gamma)
-            buf = encode_png(apply_colormap(confidence_map, cmap))
-        elif view == 'seg_vis':
-            segstyle = request.args.get('segstyle', 'random_tinted')
-            buf = encode_png(colorize_segments(img_float, seg_labels, confidence_map, segstyle))
-        elif view == 'seg_shadow':
-            if gamma != 1.0:
-                shadow_intensity = np.power(np.clip(shadow_intensity, 0, 1), gamma)
-            buf = encode_png(to_u8(shadow_intensity))
-        elif view == 'seg_qcand':
-            if gamma != 1.0:
-                q_cand_map = np.power(np.clip(q_cand_map, 0, 1), gamma)
-            buf = encode_png(apply_colormap(q_cand_map, cmap))
-        else:
-            buf = encode_png(to_u8(confidence_map))
-    else:
-        bc_ref, mrf = compute(image_name, img_float, guides, kappa, beta, gf_radius, gf_eps, mode)
-
-        if request.args.get('seg_weight') == '1':
-            conf = get_seg_confidence(image_name, img_float, kappa, beta, mode)
-            bc_ref = bc_ref * conf
-            mrf = mrf * conf
-
-        if view == 'refined':
-            out = np.power(np.clip(bc_ref, 0, 1), gamma) if gamma != 1.0 else bc_ref
-            buf = encode_png(out)
-        elif view in ('shadow_depth', 'shadow_depth_gray'):
-            from bright_channel import transmission_to_depth
-            d = transmission_to_depth(mrf)
-            if gamma != 1.0:
-                d = np.power(np.clip(d, 0, 1), gamma)
-            if view == 'shadow_depth':
-                buf = encode_png(apply_colormap(d, cmap))
-            else:
-                buf = encode_png(to_u8(d))
-        elif view == 'albedo':
-            illum = np.maximum(mrf, 0.05)
-            albedo = np.clip(img_float / illum[:, :, None], 0, 1)
-            if gamma != 1.0:
-                albedo = np.power(albedo, gamma)
-            buf = encode_png(to_u8(albedo))
-        else:
-            out = np.power(np.clip(mrf, 0, 1), gamma) if gamma != 1.0 else mrf
-            buf = encode_png(out)
-
-    return send_file(buf, mimetype='image/png')
-
-
-def load_image_full(path):
-    key = f"img_full:{path}"
-    if key in CACHE:
-        return CACHE[key]
-    img = cv2.imread(str(path))
-    if img is None:
-        return None
-    img_float = img.astype(np.float64) / 255.0
-    norm_rgb, c1c2c3, log_chrom = compute_illumination_invariants(img_float)
-    guides = [np.mean(inv, axis=2).astype(np.float32) for inv in [norm_rgb, c1c2c3, log_chrom]]
-    CACHE[key] = (img, img_float, guides)
-    return CACHE[key]
+    result = render_view(p['image_name'], img, img_float, guides, **{
+        k: p[k] for k in ('view', 'kappa', 'beta', 'gamma', 'gf_radius', 'gf_eps',
+                          'mode', 'cmap', 'color_guide', 'soft_matting', 'seg_weight', 'segstyle')
+    })
+    return send_file(encode_png(result), mimetype='image/png')
 
 
 @app.route('/save')
 def save():
-    imgs = list_images()
-    image_name = request.args.get('image', imgs[0].name if imgs else '')
-    image_path = DATA_DIR / image_name
-    view = request.args.get('view', 'mrf')
-    kappa = int(request.args.get('kappa', 15))
-    beta = float(request.args.get('beta', 0.1))
-    gamma = float(request.args.get('gamma', 1.0))
-    gf_radius = int(request.args.get('gf_radius', 8))
-    gf_eps = float(request.args.get('gf_eps', 0.01))
-    mode = request.args.get('mode', 'shadow')
-    cmap = request.args.get('colormap', 'inferno')
+    p = _parse_render_params()
+    image_path = DATA_DIR / p['image_name']
 
-    data = load_image_full(image_path)
+    data = load_image(image_path)
     if data is None:
         return jsonify({'error': 'Image not found'}), 404
     img, img_float, guides = data
 
-    stem = Path(image_name).stem
-    suffix = f"_{mode}_k{kappa}_b{beta}_g{gamma}_r{gf_radius}_e{gf_eps:.4f}_{view}"
+    result = render_view(p['image_name'], img, img_float, guides, **{
+        k: p[k] for k in ('view', 'kappa', 'beta', 'gamma', 'gf_radius', 'gf_eps',
+                          'mode', 'cmap', 'color_guide', 'soft_matting', 'seg_weight', 'segstyle')
+    })
 
-    if view == 'original':
-        result = img
-    elif view in ('dehazed', 'transmission', 'depth', 'depth_gray', 'dark_channel'):
-        omega = 1.0 - beta
-        gf_r = max(gf_radius, 1)
-        J, t_raw, t_ref, depth, A, dc = dehaze(
-            img_float, kappa=kappa, omega=omega, t0=0.1,
-            gf_radius=gf_r, gf_eps=gf_eps
-        )
-        if view == 'dehazed':
-            out = J if gamma == 1.0 else np.power(np.clip(J, 0, 1), gamma)
-            result = to_u8(out)
-        elif view == 'transmission':
-            t_vis = t_ref if gamma == 1.0 else np.power(np.clip(t_ref, 0, 1), gamma)
-            result = to_u8(t_vis)
-        elif view == 'depth':
-            d = depth if gamma == 1.0 else np.power(np.clip(depth, 0, 1), gamma)
-            result = apply_colormap(d, cmap)
-        elif view == 'depth_gray':
-            d = depth if gamma == 1.0 else np.power(np.clip(depth, 0, 1), gamma)
-            result = to_u8(d)
-        else:
-            result = to_u8(dc)
-    elif view.startswith('seg_'):
-        if mode == 'haze':
-            dc = dark_channel(img_float, kappa)
-            dc_norm = normalize_bright_channel(dc, beta)
-            dc_ref = erode_bright_channel(dc_norm, kappa)
-            bc_ref_seg = 1.0 - dc_ref
-        else:
-            bc = bright_channel(img_float, kappa)
-            bc_norm = normalize_bright_channel(bc, beta)
-            bc_ref_seg = erode_bright_channel(bc_norm, kappa)
-        confidence_map, seg_labels, shadow_intensity, q_cand_map = shadow_segmentation(
-            img_float, bc_ref_seg, felz_scale=max(kappa * 15, 50))
-        if view == 'seg_confidence':
-            v = confidence_map if gamma == 1.0 else np.power(np.clip(confidence_map, 0, 1), gamma)
-            result = apply_colormap(v, cmap)
-        elif view == 'seg_vis':
-            segstyle = request.args.get('segstyle', 'random_tinted')
-            result = colorize_segments(img_float, seg_labels, confidence_map, segstyle)
-        elif view == 'seg_shadow':
-            v = shadow_intensity if gamma == 1.0 else np.power(np.clip(shadow_intensity, 0, 1), gamma)
-            result = to_u8(v)
-        elif view == 'seg_qcand':
-            v = q_cand_map if gamma == 1.0 else np.power(np.clip(q_cand_map, 0, 1), gamma)
-            result = apply_colormap(v, cmap)
-        else:
-            result = to_u8(confidence_map)
-    else:
-        bc_ref, mrf = compute(image_name, img_float, guides, kappa, beta, gf_radius, gf_eps, mode)
-        if view == 'refined':
-            if gamma != 1.0:
-                bc_ref = np.power(np.clip(bc_ref, 0, 1), gamma)
-            result = to_u8(bc_ref)
-        elif view in ('shadow_depth', 'shadow_depth_gray'):
-            from bright_channel import transmission_to_depth
-            d = transmission_to_depth(mrf)
-            if gamma != 1.0:
-                d = np.power(np.clip(d, 0, 1), gamma)
-            if view == 'shadow_depth':
-                result = apply_colormap(d, cmap)
-            else:
-                result = to_u8(d)
-        elif view == 'albedo':
-            illum = np.maximum(mrf, 0.05)
-            albedo = img_float / illum[:, :, None]
-            albedo = np.clip(albedo, 0, 1)
-            if gamma != 1.0:
-                albedo = np.power(albedo, gamma)
-            result = to_u8(albedo)
-        else:
-            result = to_u8(mrf)
-
+    stem = Path(p['image_name']).stem
+    suffix = f"_{p['mode']}_k{p['kappa']}_b{p['beta']}_g{p['gamma']}_r{p['gf_radius']}_e{p['gf_eps']:.4f}_{p['view']}"
     out_dir = DATA_DIR / "saved"
     out_dir.mkdir(exist_ok=True)
     filename = f"{stem}{suffix}.png"
