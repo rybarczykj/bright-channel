@@ -316,8 +316,9 @@ HTML = """
   .image-list .thumb span { font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #aaa; }
 
   .canvas-wrap {
-    margin-left: 240px; height: 100vh; display: flex; align-items: center;
+    margin-left: 280px; height: 100vh; display: flex; align-items: center;
     justify-content: center; overflow: hidden; background: #18181c;
+    position: relative;
   }
   #output { max-width: 100%; max-height: 100vh; image-rendering: auto; }
 
@@ -480,21 +481,25 @@ HTML = """
       </div>
     </div>
     <div id="dehaze-options" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #333;">
-      <div style="font-size: 9px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Advanced</div>
-      <div class="param-check">
-        <input type="checkbox" id="color-guide">
+      <details>
+        <summary>Advanced</summary>
         <div>
-          <div class="check-label">Color guide</div>
-          <div class="check-hint">Preserves depth at color edges. Best when objects differ in color from haze.</div>
+          <div class="param-check">
+            <input type="checkbox" id="color-guide">
+            <div>
+              <div class="check-label">Color guide</div>
+              <div class="check-hint">Preserves depth at color edges. Best when objects differ in color from haze.</div>
+            </div>
+          </div>
+          <div class="param-check">
+            <input type="checkbox" id="soft-matting">
+            <div>
+              <div class="check-label">Soft matting</div>
+              <div class="check-hint">Sharper edges, ~8s. Matches the original He et al. paper.</div>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="param-check">
-        <input type="checkbox" id="soft-matting">
-        <div>
-          <div class="check-label">Soft matting</div>
-          <div class="check-hint">Sharper edges, ~8s. Matches the original He et al. paper.</div>
-        </div>
-      </div>
+      </details>
     </div>
   </div>
 
@@ -525,6 +530,9 @@ HTML = """
 <div class="drop-overlay" id="drop-overlay">Drop image here</div>
 <div class="canvas-wrap">
   <img id="output">
+  <div id="loading-overlay" style="display:none; position:absolute; inset:0; background:rgba(24,24,28,0.85); display:none; align-items:center; justify-content:center; flex-direction:column; gap:8px; z-index:5;">
+    <div id="loading-text" style="font-size:12px; color:#999; letter-spacing:0.5px;"></div>
+  </div>
 </div>
 
 <script>
@@ -556,6 +564,17 @@ HTML = """
   }
 
   let progressInterval = null;
+  const segViews = new Set(['seg_confidence', 'seg_vis', 'seg_shadow']);
+  const loadingEl = document.getElementById('loading-overlay');
+  const loadingText = document.getElementById('loading-text');
+
+  function showLoading(msg) {
+    loadingText.textContent = msg;
+    loadingEl.style.display = 'flex';
+  }
+  function hideLoading() {
+    loadingEl.style.display = 'none';
+  }
 
   function update() {
     clearTimeout(debounceTimer);
@@ -570,20 +589,24 @@ HTML = """
       const timingEl = document.getElementById('timing');
 
       if (progressInterval) clearInterval(progressInterval);
+
       if (params.soft_matting === '1') {
-        timingEl.textContent = 'Soft matting: starting...';
+        showLoading('Computing soft matting...');
         progressInterval = setInterval(async () => {
           try {
             const res = await fetch('/progress');
             const p = await res.json();
-            timingEl.textContent = `Soft matting: ${p.stage} (${p.pct}%)`;
+            loadingText.textContent = `Soft matting: ${p.stage} (${p.pct}%)`;
           } catch(e) {}
         }, 500);
+      } else if (segViews.has(currentView)) {
+        showLoading('Computing segments...');
       }
 
       const newImg = new Image();
       newImg.onload = () => {
         if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
+        hideLoading();
         img.src = newImg.src;
         timingEl.textContent = `${(performance.now() - t0).toFixed(0)}ms round-trip`;
       };
