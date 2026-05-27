@@ -402,10 +402,10 @@ HTML = """
   <div class="section" id="view-toggle">
     <div class="section-header">View</div>
     <div id="haze-views">
+      <button data-view="dark_channel">Raw</button>
       <button data-view="dehazed">Dehazed</button>
       <button data-view="transmission">Transmission</button>
       <button class="active" data-view="depth">Depth</button>
-      <button data-view="dark_channel">Dark Channel</button>
       <button data-view="seg_confidence">Confidence</button>
       <button data-view="seg_vis">Segmentation</button>
       <button data-view="seg_shadow">Haze Map</button>
