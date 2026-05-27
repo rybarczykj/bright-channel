@@ -458,7 +458,7 @@ HTML = """
     </div>
   </div>
 
-  <div class="section">
+  <div class="section" id="gf-section">
     <div class="section-header" id="detection-header">Haze Detection</div>
     <div class="slider-group">
       <label>patch size <span id="v-kappa">15</span></label>
@@ -468,38 +468,33 @@ HTML = """
       <label>brightness cutoff <span id="v-beta">0.05</span></label>
       <input type="range" id="beta" min="0.01" max="0.5" step="0.01" value="0.05">
     </div>
-  </div>
-
-  <div class="section" id="gf-section">
-    <div class="section-header">Guided Filter</div>
-    <div class="slider-group">
-      <label>radius <span id="v-gf_radius">40</span></label>
-      <input type="range" id="gf_radius" min="0" max="80" step="1" value="40">
+    <div id="smoothing-sub" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #333;">
+      <div style="font-size: 9px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Smoothing</div>
+      <div class="slider-group">
+        <label>radius <span id="v-gf_radius">40</span></label>
+        <input type="range" id="gf_radius" min="0" max="80" step="1" value="40">
+      </div>
+      <div class="slider-group">
+        <label>epsilon (log) <span id="v-gf_eps_log">0.0010</span></label>
+        <input type="range" id="gf_eps_log" min="-4" max="1" step="0.1" value="-3">
+      </div>
     </div>
-    <div class="slider-group">
-      <label>epsilon (log) <span id="v-gf_eps_log">0.0010</span></label>
-      <input type="range" id="gf_eps_log" min="-4" max="1" step="0.1" value="-3">
-    </div>
-    <div id="dehaze-options">
-      <details>
-        <summary>Advanced</summary>
+    <div id="dehaze-options" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #333;">
+      <div style="font-size: 9px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Advanced</div>
+      <div class="param-check">
+        <input type="checkbox" id="color-guide">
         <div>
-          <div class="param-check">
-            <input type="checkbox" id="color-guide">
-            <div>
-              <div class="check-label">Color guide</div>
-              <div class="check-hint">Preserves depth at color edges. Best when objects differ in color from haze.</div>
-            </div>
-          </div>
-          <div class="param-check">
-            <input type="checkbox" id="soft-matting">
-            <div>
-              <div class="check-label">Soft matting</div>
-              <div class="check-hint">Sharper edges, ~8s. Matches the original He et al. paper.</div>
-            </div>
-          </div>
+          <div class="check-label">Color guide</div>
+          <div class="check-hint">Preserves depth at color edges. Best when objects differ in color from haze.</div>
         </div>
-      </details>
+      </div>
+      <div class="param-check">
+        <input type="checkbox" id="soft-matting">
+        <div>
+          <div class="check-label">Soft matting</div>
+          <div class="check-hint">Sharper edges, ~8s. Matches the original He et al. paper.</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -617,9 +612,9 @@ HTML = """
   const hazeOnlyViews = new Set(['dehazed', 'transmission', 'depth', 'dark_channel']);
 
   function updateControlVisibility() {
-    const showGf = !noGfViews.has(currentView);
-    const showDehaze = showGf && currentMode === 'haze' && hazeOnlyViews.has(currentView);
-    document.getElementById('gf-section').style.display = showGf ? '' : 'none';
+    const showSmoothing = !noGfViews.has(currentView);
+    const showDehaze = showSmoothing && currentMode === 'haze' && hazeOnlyViews.has(currentView);
+    document.getElementById('smoothing-sub').style.display = showSmoothing ? '' : 'none';
     document.getElementById('dehaze-options').style.display = showDehaze ? '' : 'none';
     document.getElementById('colormap-section').style.display = colormapViews.has(currentView) ? '' : 'none';
     document.getElementById('segstyle-section').style.display = currentView === 'seg_vis' ? '' : 'none';
