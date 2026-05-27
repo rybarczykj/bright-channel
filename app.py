@@ -394,16 +394,26 @@ HTML = """
   <div class="section">
     <div class="section-header">Mode</div>
     <div class="view-toggle">
-      <button class="active mode-btn" data-mode="shadow">Shadow</button>
-      <button class="mode-btn" data-mode="haze">Haze</button>
+      <button class="active mode-btn" data-mode="haze">Haze</button>
+      <button class="mode-btn" data-mode="shadow">Shadow</button>
     </div>
   </div>
 
   <div class="section" id="view-toggle">
     <div class="section-header">View</div>
-    <div id="shadow-views">
+    <div id="haze-views">
+      <button data-view="dehazed">Dehazed</button>
+      <button data-view="transmission">Transmission</button>
+      <button class="active" data-view="depth">Depth</button>
+      <button data-view="dark_channel">Dark Channel</button>
+      <button data-view="seg_confidence">Confidence</button>
+      <button data-view="seg_vis">Segmentation</button>
+      <button data-view="seg_shadow">Haze Map</button>
+      <button data-view="original">Original</button>
+    </div>
+    <div id="shadow-views" style="display:none">
       <button data-view="refined">Raw</button>
-      <button class="active" data-view="mrf">Smoothed</button>
+      <button data-view="mrf">Smoothed</button>
       <button data-view="shadow_depth">Depth</button>
       <button data-view="albedo">Albedo</button>
       <button data-view="seg_confidence">Confidence</button>
@@ -411,15 +421,11 @@ HTML = """
       <button data-view="seg_shadow">Shadow Map</button>
       <button data-view="original">Original</button>
     </div>
-    <div id="haze-views" style="display:none">
-      <button data-view="dehazed">Dehazed</button>
-      <button data-view="transmission">Transmission</button>
-      <button data-view="depth">Depth</button>
-      <button data-view="dark_channel">Dark Channel</button>
-      <button data-view="seg_confidence">Confidence</button>
-      <button data-view="seg_vis">Segmentation</button>
-      <button data-view="seg_shadow">Haze Map</button>
-      <button data-view="original">Original</button>
+    <div id="gmm-section" style="display:none; margin-top: 6px;">
+      <div class="slider-group">
+        <label>gmm weight <span id="v-gmm_weight">1.0</span></label>
+        <input type="range" id="gmm_weight" min="0" max="1" step="0.05" value="1">
+      </div>
     </div>
   </div>
 
@@ -502,13 +508,6 @@ HTML = """
         <option value="gray_weighted">Grayscale weighted</option>
       </select>
     </div>
-    <div id="gmm-section" style="display:none; margin-top: 4px;">
-      <div class="slider-group">
-        <label>gmm weight <span id="v-gmm_weight">1.0</span></label>
-        <input type="range" id="gmm_weight" min="0" max="1" step="0.05" value="1">
-      </div>
-    </div>
-
     <button class="btn" id="save-btn" style="margin-top: 8px;">Export full res</button>
     <div class="status-msg" id="save-status"></div>
     <div class="timing" id="timing"></div>
@@ -542,8 +541,8 @@ HTML = """
     gmm_weight: v => parseFloat(v).toFixed(2),
   };
 
-  let currentView = 'mrf';
-  let currentMode = 'shadow';
+  let currentView = 'depth';
+  let currentMode = 'haze';
   let debounceTimer = null;
 
   const colormapViews = new Set(['seg_confidence', 'shadow_depth', 'depth']);
