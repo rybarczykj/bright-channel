@@ -119,6 +119,10 @@ def _build_lut(colors):
 
 
 CUSTOM_LUTS = {
+    'cmyk': _build_lut([
+        [30, 30, 30], [102, 102, 102], [255, 0, 156], [1, 174, 240],
+        [254, 242, 0], [217, 217, 217], [224, 224, 224], [255, 255, 255],
+    ]),
     'junior_senior': _build_lut([
         [235, 36, 117], [155, 100, 36], [36, 142, 200], [111, 175, 0],
         [235, 125, 12], [78, 168, 221], [253, 96, 163], [106, 188, 142],
@@ -332,6 +336,7 @@ HTML = """
       <option value="hot">Hot</option>
       <option value="bone">Bone</option>
       <option value="rainbow">Rainbow</option>
+      <option value="cmyk">CMYK</option>
       <option value="junior_senior">Junior Senior</option>
       <option value="inferno">Inferno</option>
       <option value="grayscale">Grayscale</option>
