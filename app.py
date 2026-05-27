@@ -241,141 +241,219 @@ HTML = """
 <head>
 <title>Bright Channel Explorer</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #1a1a1a; color: #e0e0e0; font-family: system-ui, sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    background: #1a1a1e;
+    color: #b0b0b4;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #555; }
+
   .controls {
-    position: fixed; top: 0; left: 0; width: 280px; height: 100vh;
-    background: #252525; padding: 16px; overflow-y: auto; z-index: 10;
+    position: fixed; top: 0; left: 0; width: 240px; height: 100vh;
+    background: #202024; padding: 0; overflow-y: auto; z-index: 10;
     border-right: 1px solid #333;
+    display: flex; flex-direction: column;
   }
-  .controls h2 { font-size: 14px; margin-bottom: 12px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
-  .slider-group { margin-bottom: 14px; }
-  .slider-group label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
-  .slider-group label span { color: #88f; font-variant-numeric: tabular-nums; }
-  input[type=range] { width: 100%; accent-color: #88f; }
-  .view-toggle { margin-bottom: 16px; }
-  .view-toggle button {
-    padding: 6px 10px; margin: 2px; font-size: 12px; cursor: pointer;
-    background: #333; color: #ccc; border: 1px solid #444; border-radius: 4px;
+
+  .section {
+    border-bottom: 1px solid #333;
+    padding: 10px 14px;
   }
-  .view-toggle button.active { background: #446; border-color: #88f; color: #fff; }
+  .section-header {
+    font-size: 10px;
+    font-weight: 500;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+
+  .slider-group { margin-bottom: 8px; }
+  .slider-group label {
+    display: flex; justify-content: space-between;
+    font-size: 10px; color: #888; margin-bottom: 3px;
+  }
+  .slider-group label span {
+    color: #7a7aff; font-variant-numeric: tabular-nums; font-size: 11px;
+  }
+  input[type=range] {
+    width: 100%; accent-color: #7a7aff;
+    height: 4px; border-radius: 2px;
+  }
+
+  .view-toggle { margin-bottom: 4px; }
+  .view-toggle button, .mode-btn, #view-toggle button {
+    padding: 4px 8px; margin: 2px; font-size: 10px; cursor: pointer;
+    background: #2a2a2e; color: #aaa; border: 1px solid #444; border-radius: 3px;
+    font-family: inherit; transition: background 0.15s;
+  }
+  .view-toggle button:hover, .mode-btn:hover, #view-toggle button:hover { background: #333; color: #ddd; }
+  .view-toggle button.active, .mode-btn.active, #view-toggle button.active {
+    background: #4a4aaa; border-color: #5a5acc; color: #eee;
+  }
+
   #image-select { display: none; }
-  .image-list { margin-bottom: 12px; max-height: 180px; overflow-y: auto; }
+  .image-list { max-height: 160px; overflow-y: auto; }
   .image-list .thumb {
     display: flex; align-items: center; gap: 8px; padding: 4px 6px;
-    cursor: pointer; border-radius: 4px; margin-bottom: 2px;
+    cursor: pointer; border-radius: 3px; margin-bottom: 1px;
+    border-left: 3px solid transparent; transition: background 0.15s;
   }
-  .image-list .thumb:hover { background: #333; }
-  .image-list .thumb.active { background: #446; outline: 1px solid #88f; }
-  .image-list .thumb img { width: 48px; height: 32px; object-fit: cover; border-radius: 3px; }
-  .image-list .thumb span { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .image-list .thumb:hover { background: #2a2a2e; }
+  .image-list .thumb.active { background: #2a2a30; border-left-color: #7a7aff; }
+  .image-list .thumb img { width: 44px; height: 30px; object-fit: cover; border-radius: 2px; border: 1px solid #333; }
+  .image-list .thumb span { font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #aaa; }
+
   .canvas-wrap {
-    margin-left: 280px; height: 100vh; display: flex; align-items: center;
-    justify-content: center; overflow: hidden;
+    margin-left: 240px; height: 100vh; display: flex; align-items: center;
+    justify-content: center; overflow: hidden; background: #18181c;
   }
   #output { max-width: 100%; max-height: 100vh; image-rendering: auto; }
-  .timing { font-size: 11px; color: #666; margin-top: 8px; }
+
+  .timing { font-size: 9px; color: #555; margin-top: 6px; }
+
   .drop-overlay {
     display: none; position: fixed; inset: 0; z-index: 100;
-    background: rgba(68, 68, 255, 0.15); border: 3px dashed #88f;
+    background: rgba(122, 122, 255, 0.1); border: 2px dashed #7a7aff;
     align-items: center; justify-content: center;
-    font-size: 24px; color: #88f; pointer-events: none;
+    font-size: 14px; color: #7a7aff; pointer-events: none;
   }
   .drop-overlay.active { display: flex; }
-  .action-btn {
-    width: 100%; padding: 8px; margin-top: 6px; font-size: 13px; cursor: pointer;
-    border-radius: 4px;
+
+  .btn {
+    width: 100%; padding: 5px 10px; margin-top: 4px;
+    font-size: 10px; cursor: pointer; border-radius: 3px;
+    font-family: inherit; transition: background 0.15s;
+    background: #2a2a2e; border: 1px solid #444; color: #aaa;
   }
-  #save-btn { background: #363; color: #cfc; border: 1px solid #4a4; }
-  #save-btn:hover { background: #484; }
-  #save-preset-btn { background: #336; color: #ccf; border: 1px solid #44a; }
-  #save-preset-btn:hover { background: #448; }
-  #delete-preset-btn { background: #433; color: #fcc; border: 1px solid #a44; font-size: 11px; padding: 4px; }
-  #delete-preset-btn:hover { background: #544; }
-  .status-msg { font-size: 11px; color: #6c6; margin-top: 4px; }
-  .preset-select {
-    width: 100%; padding: 6px; background: #333; color: #ccc;
-    border: 1px solid #444; border-radius: 4px; margin-top: 6px; font-size: 12px;
+  .btn:hover { background: #333; color: #ddd; }
+  .btn.primary { background: #4a4aaa; border-color: #5a5acc; color: #eee; }
+  .btn.primary:hover { background: #5a5acc; }
+  .btn.danger { color: #e66; font-size: 9px; padding: 3px 8px; }
+  .btn.danger:hover { background: #633; }
+  .status-msg { font-size: 9px; color: #6a6; margin-top: 3px; }
+
+  select {
+    width: 100%; padding: 4px 6px; background: #2a2a2e; color: #ccc;
+    border: 1px solid #444; border-radius: 3px; font-family: inherit; font-size: 10px;
   }
+  select:focus { border-color: #7a7aff; outline: none; }
+
+  details { margin-top: 6px; }
+  details summary {
+    font-size: 10px; color: #666; cursor: pointer;
+    list-style: none; user-select: none;
+  }
+  details summary::before { content: '+ '; }
+  details[open] summary::before { content: '- '; }
+  details > div { margin-top: 6px; }
+
+  .param-check {
+    display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px;
+  }
+  .param-check input[type=checkbox] {
+    width: 13px; height: 13px; accent-color: #7a7aff; margin-top: 1px; flex-shrink: 0;
+  }
+  .param-check .check-label { font-size: 10px; color: #aaa; }
+  .param-check .check-hint { font-size: 9px; color: #555; margin-top: 1px; }
 </style>
 </head>
 <body>
 
 <div class="controls">
-  <h2>Image</h2>
-  <select id="image-select">
-    {% for img in images %}
-    <option value="{{ img }}">{{ img }}</option>
-    {% endfor %}
-  </select>
-  <div class="image-list" id="image-list">
-    {% for img in images %}
-    <div class="thumb{% if loop.first %} active{% endif %}" data-name="{{ img }}">
-      <img src="/thumb/{{ img }}">
-      <span>{{ img }}</span>
+  <div class="section">
+    <div class="section-header">Image</div>
+    <select id="image-select">
+      {% for img in images %}
+      <option value="{{ img }}">{{ img }}</option>
+      {% endfor %}
+    </select>
+    <div class="image-list" id="image-list">
+      {% for img in images %}
+      <div class="thumb{% if loop.first %} active{% endif %}" data-name="{{ img }}">
+        <img src="/thumb/{{ img }}">
+        <span>{{ img }}</span>
+      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
   </div>
 
-  <h2>Mode</h2>
-  <div class="view-toggle">
-    <button class="active" data-mode="shadow">Shadow (bright ch.)</button>
-    <button data-mode="haze">Haze (dark ch.)</button>
-  </div>
-
-  <h2>Channel</h2>
-  <div class="slider-group">
-    <label>Patch size (kappa) <span id="v-kappa">15</span></label>
-    <input type="range" id="kappa" min="1" max="81" step="2" value="15">
-  </div>
-  <div class="slider-group">
-    <label>Beta (normalize %) <span id="v-beta">0.05</span></label>
-    <input type="range" id="beta" min="0.01" max="0.5" step="0.01" value="0.05">
-  </div>
-
-  <div id="gf-section">
-  <h2>MRF / Guided Filter</h2>
-  <div class="slider-group">
-    <label>Radius <span id="v-gf_radius">40</span></label>
-    <input type="range" id="gf_radius" min="0" max="80" step="1" value="40">
-  </div>
-  <div class="slider-group">
-    <label>Epsilon (log) <span id="v-gf_eps_log">0.0010</span></label>
-    <input type="range" id="gf_eps_log" min="-4" max="1" step="0.1" value="-3">
-  </div>
-  <div id="dehaze-options">
-  <details style="margin-top: 8px;">
-    <summary style="font-size: 12px; color: #888; cursor: pointer;">Advanced</summary>
-    <div style="margin-top: 6px;">
-      <label style="font-size: 13px; cursor: pointer;">
-        <input type="checkbox" id="color-guide" style="accent-color: #88f; margin-right: 6px;">
-        Color guide
-      </label>
-      <div style="font-size: 10px; color: #666; margin: 2px 0 6px 20px;">Uses RGB edges to preserve depth boundaries. Best when objects have different colors than the haze.</div>
+  <div class="section">
+    <div class="section-header">Mode</div>
+    <div class="view-toggle">
+      <button class="active mode-btn" data-mode="shadow">Shadow</button>
+      <button class="mode-btn" data-mode="haze">Haze</button>
     </div>
-    <div>
-      <label style="font-size: 13px; cursor: pointer;">
-        <input type="checkbox" id="soft-matting" style="accent-color: #88f; margin-right: 6px;">
-        Soft matting
-      </label>
-      <div style="font-size: 10px; color: #666; margin: 2px 0 0 20px;">Sharper edges, ~8s. Matches the original He et al. paper quality.</div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">Channel</div>
+    <div class="slider-group">
+      <label>Patch size (kappa) <span id="v-kappa">15</span></label>
+      <input type="range" id="kappa" min="1" max="81" step="2" value="15">
     </div>
-  </details>
-  </div>
-  </div>
-
-  <h2>Output</h2>
-  <div class="slider-group">
-    <label>Gamma <span id="v-gamma">1.0</span></label>
-    <input type="range" id="gamma" min="0.1" max="5.0" step="0.1" value="1.0">
+    <div class="slider-group">
+      <label>Beta (normalize %) <span id="v-beta">0.05</span></label>
+      <input type="range" id="beta" min="0.01" max="0.5" step="0.01" value="0.05">
+    </div>
   </div>
 
-  <div class="view-toggle" id="view-toggle">
-    <h2>View</h2>
+  <div class="section" id="gf-section">
+    <div class="section-header">Guided Filter</div>
+    <div class="slider-group">
+      <label>Radius <span id="v-gf_radius">40</span></label>
+      <input type="range" id="gf_radius" min="0" max="80" step="1" value="40">
+    </div>
+    <div class="slider-group">
+      <label>Epsilon (log) <span id="v-gf_eps_log">0.0010</span></label>
+      <input type="range" id="gf_eps_log" min="-4" max="1" step="0.1" value="-3">
+    </div>
+    <div id="dehaze-options">
+      <details>
+        <summary>Advanced</summary>
+        <div>
+          <div class="param-check">
+            <input type="checkbox" id="color-guide">
+            <div>
+              <div class="check-label">Color guide</div>
+              <div class="check-hint">Preserves depth at color edges. Best when objects differ in color from haze.</div>
+            </div>
+          </div>
+          <div class="param-check">
+            <input type="checkbox" id="soft-matting">
+            <div>
+              <div class="check-label">Soft matting</div>
+              <div class="check-hint">Sharper edges, ~8s. Matches the original He et al. paper.</div>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">Output</div>
+    <div class="slider-group">
+      <label>Gamma <span id="v-gamma">1.0</span></label>
+      <input type="range" id="gamma" min="0.1" max="5.0" step="0.1" value="1.0">
+    </div>
+  </div>
+
+  <div class="section" id="view-toggle">
+    <div class="section-header">View</div>
     <div id="shadow-views">
       <button class="active" data-view="mrf">MRF</button>
       <button data-view="refined">Refined</button>
-      <button data-view="shadow_depth">Shadow Depth</button>
+      <button data-view="shadow_depth">Depth</button>
       <button data-view="albedo">Albedo</button>
       <button data-view="seg_confidence">Seg. Confidence</button>
       <button data-view="seg_vis">Segmentation</button>
@@ -394,48 +472,53 @@ HTML = """
       <button data-view="seg_qcand">Good Candidates</button>
       <button data-view="original">Original</button>
     </div>
+
+    <div id="colormap-section" style="display:none; margin-top: 8px;">
+      <label style="font-size: 10px; color: #666; margin-bottom: 3px; display: block;">Colormap</label>
+      <select id="colormap-select">
+        <option value="grayscale">Grayscale</option>
+        <option value="gray_lighter">Gray (lighter)</option>
+        <option value="gray_lightest">Gray (lightest)</option>
+        <option value="viridis">Viridis</option>
+        <option value="magma">Magma</option>
+        <option value="plasma">Plasma</option>
+        <option value="inferno">Inferno</option>
+        <option value="hot">Hot</option>
+        <option value="bone">Bone</option>
+        <option value="rainbow">Rainbow</option>
+        <option value="cmyk">CMYK</option>
+        <option value="junior_senior">Junior Senior</option>
+      </select>
+    </div>
+    <div id="segstyle-section" style="display:none; margin-top: 8px;">
+      <label style="font-size: 10px; color: #666; margin-bottom: 3px; display: block;">Segment coloring</label>
+      <select id="segstyle-select">
+        <option value="random_tinted">Random + confidence tint</option>
+        <option value="mean_color">Mean image color</option>
+        <option value="random_plain">Random (no tint)</option>
+        <option value="gray_random">Grayscale random</option>
+        <option value="gray_weighted">Grayscale weighted</option>
+      </select>
+    </div>
+
+    <div class="timing" id="timing"></div>
   </div>
 
-  <div id="colormap-section" style="display:none; margin-top: 8px;">
-    <label style="font-size: 12px; color: #aaa;">Colormap</label>
-    <select class="preset-select" id="colormap-select" style="margin-top: 4px;">
-      <option value="grayscale">Grayscale</option>
-      <option value="gray_lighter">Gray (lighter)</option>
-      <option value="gray_lightest">Gray (lightest)</option>
-      <option value="viridis">Viridis</option>
-      <option value="magma">Magma</option>
-      <option value="plasma">Plasma</option>
-      <option value="inferno">Inferno</option>
-      <option value="hot">Hot</option>
-      <option value="bone">Bone</option>
-      <option value="rainbow">Rainbow</option>
-      <option value="cmyk">CMYK</option>
-      <option value="junior_senior">Junior Senior</option>
+  <div class="section">
+    <div class="section-header">Presets</div>
+    <select id="preset-select">
+      <option value="">-- select --</option>
     </select>
-  </div>
-  <div id="segstyle-section" style="display:none; margin-top: 8px;">
-    <label style="font-size: 12px; color: #aaa;">Segment coloring</label>
-    <select class="preset-select" id="segstyle-select" style="margin-top: 4px;">
-      <option value="random_tinted">Random + confidence tint</option>
-      <option value="mean_color">Mean image color</option>
-      <option value="random_plain">Random (no tint)</option>
-      <option value="gray_random">Grayscale random</option>
-      <option value="gray_weighted">Grayscale weighted</option>
-    </select>
+    <div style="display: flex; gap: 4px; margin-top: 4px;">
+      <button class="btn primary" id="save-preset-btn" style="flex:1">Save</button>
+      <button class="btn danger" id="delete-preset-btn">Delete</button>
+    </div>
   </div>
 
-  <div class="timing" id="timing"></div>
-
-  <h2>Presets</h2>
-  <select class="preset-select" id="preset-select">
-    <option value="">— select preset —</option>
-  </select>
-  <button class="action-btn" id="save-preset-btn">Save Preset</button>
-  <button id="delete-preset-btn">Delete Selected Preset</button>
-
-  <h2 style="margin-top:16px">Export</h2>
-  <button class="action-btn" id="save-btn">Save Output (full res)</button>
-  <div class="status-msg" id="save-status"></div>
+  <div class="section">
+    <button class="btn" id="save-btn">Export full res</button>
+    <div class="status-msg" id="save-status"></div>
+  </div>
 </div>
 
 <div class="drop-overlay" id="drop-overlay">Drop image here</div>
@@ -545,9 +628,9 @@ HTML = """
     });
   });
 
-  document.querySelectorAll('.view-toggle button[data-mode]').forEach(btn => {
+  document.querySelectorAll('button[data-mode]').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.view-toggle button[data-mode]').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('button[data-mode]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentMode = btn.dataset.mode;
       const showId = currentMode === 'haze' ? 'haze-views' : 'shadow-views';
