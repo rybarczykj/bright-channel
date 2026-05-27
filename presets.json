@@ -1,4 +1,24 @@
 {
+  "He et al. (depth)": {
+    "kappa": "15",
+    "beta": "0.05",
+    "gf_radius": "40",
+    "gf_eps_log": "-3",
+    "gamma": "1.0",
+    "mode": "haze",
+    "view": "depth_gray",
+    "color_guide": "1"
+  },
+  "He et al. (dehazed)": {
+    "kappa": "15",
+    "beta": "0.05",
+    "gf_radius": "40",
+    "gf_eps_log": "-3",
+    "gamma": "1.0",
+    "mode": "haze",
+    "view": "dehazed",
+    "color_guide": "1"
+  },
   "float1": {
     "kappa": "1",
     "beta": "0.09",
