@@ -80,7 +80,7 @@ def render_view(image_name, img, img_float, guides, view, kappa, beta, gamma,
     if view == 'original':
         return img
 
-    if view in ('dehazed', 'transmission', 'depth', 'depth_gray', 'dark_channel'):
+    if view in ('dehazed', 'transmission', 'depth', 'dark_channel'):
         omega = 1.0 - beta
         gf_r = max(gf_radius, 1)
         dehaze_key = f"dehaze:{image_name}:{kappa}:{omega}:{gf_r}:{gf_eps}:{color_guide}:{soft_matting}"
@@ -103,9 +103,6 @@ def render_view(image_name, img, img_float, guides, view, kappa, beta, gamma,
         elif view == 'depth':
             d = np.power(np.clip(depth, 0, 1), gamma) if gamma != 1.0 else depth
             return apply_colormap(d, cmap)
-        elif view == 'depth_gray':
-            d = np.power(np.clip(depth, 0, 1), gamma) if gamma != 1.0 else depth
-            return to_u8(d)
         else:
             return to_u8(dc)
 
@@ -147,13 +144,11 @@ def render_view(image_name, img, img_float, guides, view, kappa, beta, gamma,
     if view == 'refined':
         out = np.power(np.clip(bc_ref, 0, 1), gamma) if gamma != 1.0 else bc_ref
         return to_u8(out)
-    elif view in ('shadow_depth', 'shadow_depth_gray'):
+    elif view == 'shadow_depth':
         d = transmission_to_depth(mrf)
         if gamma != 1.0:
             d = np.power(np.clip(d, 0, 1), gamma)
-        if view == 'shadow_depth':
-            return apply_colormap(d, cmap)
-        return to_u8(d)
+        return apply_colormap(d, cmap)
     elif view == 'albedo':
         illum = np.maximum(mrf, 0.05)
         albedo = np.clip(img_float / illum[:, :, None], 0, 1)
@@ -212,7 +207,6 @@ CUSTOM_LUTS = {
 
 GRAY_RANGES = {
     'grayscale': (0, 255),
-    'gray_light': (100, 255),
     'gray_lighter': (150, 255),
     'gray_lightest': (190, 255),
 }
@@ -375,7 +369,6 @@ HTML = """
       <button class="active" data-view="mrf">MRF</button>
       <button data-view="refined">Refined</button>
       <button data-view="shadow_depth">Shadow Depth</button>
-      <button data-view="shadow_depth_gray">Depth (gray)</button>
       <button data-view="albedo">Albedo</button>
       <button data-view="seg_confidence">Seg. Confidence</button>
       <button data-view="seg_vis">Segmentation</button>
@@ -387,7 +380,6 @@ HTML = """
       <button data-view="dehazed">Dehazed</button>
       <button data-view="transmission">Transmission</button>
       <button data-view="depth">Depth</button>
-      <button data-view="depth_gray">Depth (gray)</button>
       <button data-view="dark_channel">Dark Channel</button>
       <button data-view="seg_confidence">Seg. Confidence</button>
       <button data-view="seg_vis">Segmentation</button>
@@ -400,19 +392,18 @@ HTML = """
   <div id="colormap-section" style="display:none; margin-top: 8px;">
     <label style="font-size: 12px; color: #aaa;">Colormap</label>
     <select class="preset-select" id="colormap-select" style="margin-top: 4px;">
-      <option value="gray_light">Gray (light)</option>
+      <option value="grayscale">Grayscale</option>
+      <option value="gray_lighter">Gray (lighter)</option>
+      <option value="gray_lightest">Gray (lightest)</option>
       <option value="viridis">Viridis</option>
       <option value="magma">Magma</option>
       <option value="plasma">Plasma</option>
+      <option value="inferno">Inferno</option>
       <option value="hot">Hot</option>
       <option value="bone">Bone</option>
       <option value="rainbow">Rainbow</option>
       <option value="cmyk">CMYK</option>
       <option value="junior_senior">Junior Senior</option>
-      <option value="inferno">Inferno</option>
-      <option value="grayscale">Grayscale</option>
-      <option value="gray_lighter">Gray (lighter)</option>
-      <option value="gray_lightest">Gray (lightest)</option>
     </select>
   </div>
   <div id="segstyle-section" style="display:none; margin-top: 8px;">
