@@ -581,7 +581,6 @@ HTML = """
 
   function update() {
     clearTimeout(debounceTimer);
-    const expensive = segViews.has(currentView) || document.getElementById('soft-matting').checked;
     debounceTimer = setTimeout(() => {
       const params = getParams();
       sliders.forEach(s => {
@@ -623,7 +622,7 @@ HTML = """
         timingEl.textContent = `${(performance.now() - t0).toFixed(0)}ms round-trip`;
       };
       newImg.src = '/render?' + qs + '&t=' + Date.now();
-    }, expensive ? 400 : 50);
+    }, 50);
   }
 
   sliders.forEach(s => document.getElementById(s).addEventListener('input', update));
