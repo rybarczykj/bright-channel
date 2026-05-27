@@ -513,8 +513,6 @@ HTML = """
       <input type="range" id="gamma" min="0.1" max="5.0" step="0.1" value="1.0">
     </div>
 
-    <button class="btn" id="save-btn" style="margin-top: 8px;">Export full res</button>
-    <div class="status-msg" id="save-status"></div>
     <div class="timing" id="timing"></div>
   </div>
 
@@ -533,7 +531,8 @@ HTML = """
 <div class="drop-overlay" id="drop-overlay">Drop image here</div>
 <div class="canvas-wrap">
   <img id="output">
-  <div id="loading-overlay" style="display:none; position:absolute; inset:0; background:rgba(24,24,28,0.85); display:none; align-items:center; justify-content:center; flex-direction:column; gap:8px; z-index:5;">
+  <button class="btn" id="save-btn" style="position:absolute; top:12px; right:12px; z-index:6; width:auto; padding:5px 14px;">Export</button>
+  <div id="loading-overlay" style="display:none; position:absolute; inset:0; background:rgba(24,24,28,0.85); align-items:center; justify-content:center; flex-direction:column; gap:8px; z-index:5;">
     <div id="loading-text" style="font-size:12px; color:#999; letter-spacing:0.5px;"></div>
   </div>
 </div>
@@ -769,16 +768,11 @@ HTML = """
 
   refreshPresetSelect();
 
-  // Save output
-  document.getElementById('save-btn').addEventListener('click', async () => {
+  // Export: trigger browser download
+  document.getElementById('save-btn').addEventListener('click', () => {
     const params = getParams();
     const qs = new URLSearchParams(params).toString();
-    const status = document.getElementById('save-status');
-    status.textContent = 'Saving...';
-    const res = await fetch('/save?' + qs);
-    const data = await res.json();
-    status.textContent = data.filename;
-    setTimeout(() => status.textContent = '', 3000);
+    window.location.href = '/save?' + qs;
   });
 
   // Drag and drop
@@ -1010,13 +1004,9 @@ def save():
     })
 
     stem = Path(p['image_name']).stem
-    suffix = f"_{p['mode']}_k{p['kappa']}_b{p['beta']}_g{p['gamma']}_r{p['gf_radius']}_e{p['gf_eps']:.4f}_{p['view']}"
-    out_dir = DATA_DIR / "saved"
-    out_dir.mkdir(exist_ok=True)
-    filename = f"{stem}{suffix}.png"
-    cv2.imwrite(str(out_dir / filename), result)
-
-    return jsonify({'filename': filename, 'path': str(out_dir / filename)})
+    filename = f"{stem}_{p['mode']}_{p['view']}.png"
+    buf = encode_png(result)
+    return send_file(buf, mimetype='image/png', as_attachment=True, download_name=filename)
 
 
 if __name__ == '__main__':
