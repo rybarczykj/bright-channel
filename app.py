@@ -107,7 +107,7 @@ def render_view(image_name, img, img_float, guides, view, kappa, beta, gamma,
             return to_u8(dc)
 
     if view.startswith('seg_'):
-        seg_key = f"seg:{image_name}:{kappa}:{beta}:{mode}"
+        seg_key = f"seg:{image_name}:{kappa}:{beta}:{mode}:{soft_matting}"
         if seg_key in CACHE:
             confidence_map, seg_labels, shadow_intensity, q_cand_map = CACHE[seg_key]
         else:
@@ -120,6 +120,9 @@ def render_view(image_name, img, img_float, guides, view, kappa, beta, gamma,
                 bc = bright_channel(img_float, kappa)
                 bc_norm = normalize_bright_channel(bc, beta)
                 bc_ref = erode_bright_channel(bc_norm, kappa)
+            if soft_matting:
+                from bright_channel import refine_transmission_matting
+                bc_ref = refine_transmission_matting(img_float, bc_ref)
             confidence_map, seg_labels, shadow_intensity, q_cand_map = shadow_segmentation(
                 img_float, bc_ref, felz_scale=max(kappa * 15, 50))
             CACHE[seg_key] = (confidence_map, seg_labels, shadow_intensity, q_cand_map)
@@ -578,6 +581,7 @@ HTML = """
 
   function update() {
     clearTimeout(debounceTimer);
+    const expensive = segViews.has(currentView) || document.getElementById('soft-matting').checked;
     debounceTimer = setTimeout(() => {
       const params = getParams();
       sliders.forEach(s => {
@@ -590,28 +594,36 @@ HTML = """
 
       if (progressInterval) clearInterval(progressInterval);
 
-      if (params.soft_matting === '1') {
-        showLoading('Computing soft matting...');
-        progressInterval = setInterval(async () => {
-          try {
-            const res = await fetch('/progress');
-            const p = await res.json();
-            loadingText.textContent = `Soft matting: ${p.stage} (${p.pct}%)`;
-          } catch(e) {}
-        }, 500);
-      } else if (segViews.has(currentView)) {
-        showLoading('Computing segments...');
+      const isSeg = segViews.has(currentView);
+      const isMatting = params.soft_matting === '1';
+      let loadingTimeout = null;
+
+      if (isMatting || isSeg) {
+        const msg = isMatting ? (isSeg ? 'Refining + segmenting...' : 'Computing soft matting...') : 'Computing segments...';
+        loadingTimeout = setTimeout(() => {
+          showLoading(msg);
+          if (isMatting) {
+            progressInterval = setInterval(async () => {
+              try {
+                const res = await fetch('/progress');
+                const p = await res.json();
+                loadingText.textContent = `${p.stage} (${p.pct}%)`;
+              } catch(e) {}
+            }, 500);
+          }
+        }, 300);
       }
 
       const newImg = new Image();
       newImg.onload = () => {
+        if (loadingTimeout) clearTimeout(loadingTimeout);
         if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
         hideLoading();
         img.src = newImg.src;
         timingEl.textContent = `${(performance.now() - t0).toFixed(0)}ms round-trip`;
       };
       newImg.src = '/render?' + qs + '&t=' + Date.now();
-    }, 50);
+    }, expensive ? 400 : 50);
   }
 
   sliders.forEach(s => document.getElementById(s).addEventListener('input', update));
