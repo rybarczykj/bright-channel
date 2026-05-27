@@ -252,6 +252,12 @@ HTML = """
       Color guide (He et al.)
     </label>
   </div>
+  <div style="margin-top: 4px;">
+    <label style="font-size: 13px; cursor: pointer;">
+      <input type="checkbox" id="soft-matting" style="accent-color: #88f; margin-right: 6px;">
+      Soft matting (slow, sharp)
+    </label>
+  </div>
   </div>
 
   <h2>Output</h2>
@@ -357,6 +363,7 @@ HTML = """
     if (currentView === 'seg_vis') p['segstyle'] = document.getElementById('segstyle-select').value;
     if (document.getElementById('seg-weight').checked) p['seg_weight'] = '1';
     p['color_guide'] = document.getElementById('color-guide').checked ? '1' : '0';
+    if (document.getElementById('soft-matting').checked) p['soft_matting'] = '1';
     return p;
   }
 
@@ -385,6 +392,7 @@ HTML = """
   document.getElementById('segstyle-select').addEventListener('change', update);
   document.getElementById('seg-weight').addEventListener('change', update);
   document.getElementById('color-guide').addEventListener('change', update);
+  document.getElementById('soft-matting').addEventListener('change', update);
   function bindThumbs() {
     document.querySelectorAll('.thumb').forEach(t => {
       t.addEventListener('click', () => {
@@ -709,6 +717,7 @@ def render():
     mode = request.args.get('mode', 'shadow')
     cmap = request.args.get('colormap', 'inferno')
     color_guide = request.args.get('color_guide', '1') == '1'
+    soft_matting = request.args.get('soft_matting') == '1'
 
     data = load_image(image_path)
     if data is None:
@@ -720,13 +729,14 @@ def render():
     elif view in ('dehazed', 'transmission', 'depth', 'depth_gray', 'dark_channel'):
         omega = 1.0 - beta
         gf_r = max(gf_radius, 1)
-        dehaze_key = f"dehaze:{image_name}:{kappa}:{omega}:{gf_r}:{gf_eps}:{color_guide}"
+        dehaze_key = f"dehaze:{image_name}:{kappa}:{omega}:{gf_r}:{gf_eps}:{color_guide}:{soft_matting}"
         if dehaze_key in CACHE:
             J, t_raw, t_ref, depth, A, dc = CACHE[dehaze_key]
         else:
             J, t_raw, t_ref, depth, A, dc = dehaze(
                 img_float, kappa=kappa, omega=omega, t0=0.1,
-                gf_radius=gf_r, gf_eps=gf_eps, color_guide=color_guide
+                gf_radius=gf_r, gf_eps=gf_eps, color_guide=color_guide,
+                use_matting=soft_matting
             )
             CACHE[dehaze_key] = (J, t_raw, t_ref, depth, A, dc)
 

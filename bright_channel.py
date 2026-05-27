@@ -2,6 +2,8 @@ import sys
 import numpy as np
 import cv2
 from pathlib import Path
+from scipy import sparse
+from scipy.sparse.linalg import spsolve
 from skimage.segmentation import felzenszwalb
 from sklearn.mixture import GaussianMixture
 
@@ -54,6 +56,58 @@ def refine_transmission(img_float, t, radius=40, eps=0.001, color_guide=True):
     return np.clip(t_refined.astype(np.float64), 0, 1)
 
 
+def _matting_laplacian(img, win_size=1, eps=1e-7):
+    """Levin et al. closed-form matting Laplacian (sparse)."""
+    h, w, c = img.shape
+    n = h * w
+    win = 2 * win_size + 1
+    nwin = win * win
+
+    row_idx = []
+    col_idx = []
+    vals = []
+
+    for yi in range(win_size, h - win_size):
+        for xi in range(win_size, w - win_size):
+            patch = img[yi - win_size:yi + win_size + 1,
+                        xi - win_size:xi + win_size + 1].reshape(nwin, c)
+            mu = patch.mean(axis=0)
+            cov = patch.T @ patch / nwin - np.outer(mu, mu)
+            cov_inv = np.linalg.inv(cov + eps / nwin * np.eye(c))
+
+            patch_centered = patch - mu
+            term = patch_centered @ cov_inv @ patch_centered.T
+            win_vals = (np.eye(nwin) - (1.0 + term) / nwin)
+
+            ys = np.arange(yi - win_size, yi + win_size + 1)
+            xs = np.arange(xi - win_size, xi + win_size + 1)
+            yy, xx = np.meshgrid(ys, xs, indexing='ij')
+            indices = (yy.ravel() * w + xx.ravel())
+
+            for i in range(nwin):
+                for j in range(nwin):
+                    if abs(win_vals[i, j]) > 1e-10:
+                        row_idx.append(indices[i])
+                        col_idx.append(indices[j])
+                        vals.append(win_vals[i, j])
+
+    L = sparse.csr_matrix((vals, (row_idx, col_idx)), shape=(n, n))
+    return L
+
+
+def refine_transmission_matting(img_float, t, lam=1e-4):
+    """Refine transmission using Levin et al. closed-form matting Laplacian.
+    Solves: (L + lambda*I) * t_refined = lambda * t"""
+    h, w = t.shape
+    n = h * w
+    L = _matting_laplacian(img_float, win_size=1)
+    I_sp = sparse.eye(n)
+    A = L + lam * I_sp
+    b = lam * t.ravel()
+    x = spsolve(A, b)
+    return np.clip(x.reshape(h, w), 0, 1)
+
+
 def recover_scene(img_float, A, t, t0=0.1):
     """J(x) = (I(x) - A) / max(t(x), t0) + A"""
     t_clamped = np.maximum(t, t0)[:, :, None]
@@ -68,13 +122,17 @@ def transmission_to_depth(t):
     return depth
 
 
-def dehaze(img_float, kappa=15, omega=0.95, t0=0.1, gf_radius=40, gf_eps=0.001, color_guide=True):
+def dehaze(img_float, kappa=15, omega=0.95, t0=0.1, gf_radius=40, gf_eps=0.001,
+           color_guide=True, use_matting=False):
     """Full He et al. dehazing pipeline. Returns dehazed image, transmission,
     depth map, and atmospheric light."""
     dc = dark_channel(img_float, kappa)
     A = estimate_atmospheric_light(img_float, dc)
     t_raw = estimate_transmission(img_float, A, kappa, omega)
-    t_refined = refine_transmission(img_float, t_raw, gf_radius, gf_eps, color_guide)
+    if use_matting:
+        t_refined = refine_transmission_matting(img_float, t_raw)
+    else:
+        t_refined = refine_transmission(img_float, t_raw, gf_radius, gf_eps, color_guide)
     J = recover_scene(img_float, A, t_refined, t0)
     depth = transmission_to_depth(t_refined)
     return J, t_raw, t_refined, depth, A, dc
