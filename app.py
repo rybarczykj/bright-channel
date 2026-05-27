@@ -399,14 +399,38 @@ HTML = """
     </div>
   </div>
 
+  <div class="section" id="view-toggle">
+    <div class="section-header">View</div>
+    <div id="shadow-views">
+      <button data-view="refined">Raw</button>
+      <button class="active" data-view="mrf">Smoothed</button>
+      <button data-view="shadow_depth">Depth</button>
+      <button data-view="albedo">Albedo</button>
+      <button data-view="seg_confidence">Confidence</button>
+      <button data-view="seg_vis">Segmentation</button>
+      <button data-view="seg_shadow">Shadow Map</button>
+      <button data-view="original">Original</button>
+    </div>
+    <div id="haze-views" style="display:none">
+      <button data-view="dehazed">Dehazed</button>
+      <button data-view="transmission">Transmission</button>
+      <button data-view="depth">Depth</button>
+      <button data-view="dark_channel">Dark Channel</button>
+      <button data-view="seg_confidence">Confidence</button>
+      <button data-view="seg_vis">Segmentation</button>
+      <button data-view="seg_shadow">Haze Map</button>
+      <button data-view="original">Original</button>
+    </div>
+  </div>
+
   <div class="section">
     <div class="section-header">Channel</div>
     <div class="slider-group">
-      <label>Patch size (kappa) <span id="v-kappa">15</span></label>
+      <label>patch size (kappa) <span id="v-kappa">15</span></label>
       <input type="range" id="kappa" min="1" max="81" step="2" value="15">
     </div>
     <div class="slider-group">
-      <label>Beta (normalize %) <span id="v-beta">0.05</span></label>
+      <label>beta (normalize %) <span id="v-beta">0.05</span></label>
       <input type="range" id="beta" min="0.01" max="0.5" step="0.01" value="0.05">
     </div>
   </div>
@@ -414,11 +438,11 @@ HTML = """
   <div class="section" id="gf-section">
     <div class="section-header">Guided Filter</div>
     <div class="slider-group">
-      <label>Radius <span id="v-gf_radius">40</span></label>
+      <label>radius <span id="v-gf_radius">40</span></label>
       <input type="range" id="gf_radius" min="0" max="80" step="1" value="40">
     </div>
     <div class="slider-group">
-      <label>Epsilon (log) <span id="v-gf_eps_log">0.0010</span></label>
+      <label>epsilon (log) <span id="v-gf_eps_log">0.0010</span></label>
       <input type="range" id="gf_eps_log" min="-4" max="1" step="0.1" value="-3">
     </div>
     <div id="dehaze-options">
@@ -441,30 +465,6 @@ HTML = """
           </div>
         </div>
       </details>
-    </div>
-  </div>
-
-  <div class="section" id="view-toggle">
-    <div class="section-header">View</div>
-    <div id="shadow-views">
-      <button data-view="refined">Raw</button>
-      <button class="active" data-view="mrf">Smoothed</button>
-      <button data-view="shadow_depth">Depth</button>
-      <button data-view="albedo">Albedo</button>
-      <button data-view="seg_confidence">Confidence</button>
-      <button data-view="seg_vis">Segmentation</button>
-      <button data-view="seg_shadow">Shadow Map</button>
-      <button data-view="original">Original</button>
-    </div>
-    <div id="haze-views" style="display:none">
-      <button data-view="dehazed">Dehazed</button>
-      <button data-view="transmission">Transmission</button>
-      <button data-view="depth">Depth</button>
-      <button data-view="dark_channel">Dark Channel</button>
-      <button data-view="seg_confidence">Confidence</button>
-      <button data-view="seg_vis">Segmentation</button>
-      <button data-view="seg_shadow">Haze Map</button>
-      <button data-view="original">Original</button>
     </div>
   </div>
 
