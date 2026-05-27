@@ -468,7 +468,7 @@ HTML = """
   </div>
 
   <div class="section" id="gf-section">
-    <div class="section-header" id="detection-header">Haze Detection</div>
+    <div class="section-header" id="detection-header">Measurement</div>
     <div class="slider-group">
       <label>patch size <span id="v-kappa">15</span></label>
       <input type="range" id="kappa" min="1" max="81" step="2" value="15">
@@ -672,7 +672,6 @@ HTML = """
       document.getElementById(hideId).style.display = 'none';
       document.getElementById(showId).style.display = '';
       document.getElementById('seg-map-label').textContent = currentMode === 'haze' ? 'Haze Map' : 'Shadow Map';
-      document.getElementById('detection-header').textContent = currentMode === 'haze' ? 'Haze Detection' : 'Shadow Detection';
       const hasView = document.querySelector(`#view-toggle button[data-view="${currentView}"]`);
       const inHidden = document.querySelector(`#${hideId} button[data-view="${currentView}"]`);
       if (inHidden && !document.querySelector(`#${showId} button[data-view="${currentView}"]`)) {
