@@ -7,7 +7,8 @@
     "gamma": "1.0",
     "mode": "haze",
     "view": "depth_gray",
-    "color_guide": "1"
+    "color_guide": "1",
+    "soft_matting": "1"
   },
   "He et al. (dehazed)": {
     "kappa": "15",
@@ -17,7 +18,8 @@
     "gamma": "1.0",
     "mode": "haze",
     "view": "dehazed",
-    "color_guide": "1"
+    "color_guide": "1",
+    "soft_matting": "1"
   },
   "float1": {
     "kappa": "1",

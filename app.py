@@ -513,6 +513,7 @@ HTML = """
       if (preset[s] !== undefined) document.getElementById(s).value = preset[s];
     });
     document.getElementById('color-guide').checked = preset.color_guide === '1';
+    document.getElementById('soft-matting').checked = preset.soft_matting === '1';
     updateControlVisibility();
     update();
   }
@@ -547,6 +548,7 @@ HTML = """
     params.mode = currentMode;
     params.view = currentView;
     params.color_guide = document.getElementById('color-guide').checked ? '1' : '0';
+    params.soft_matting = document.getElementById('soft-matting').checked ? '1' : '0';
     await fetch('/presets/save', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
