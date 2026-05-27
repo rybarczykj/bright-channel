@@ -102,6 +102,7 @@ COLORMAPS = {
     'plasma': cv2.COLORMAP_PLASMA,
     'hot': cv2.COLORMAP_HOT,
     'bone': cv2.COLORMAP_BONE,
+    'rainbow': cv2.COLORMAP_RAINBOW,
 }
 
 GRAY_RANGES = {
@@ -303,6 +304,7 @@ HTML = """
       <option value="plasma">Plasma</option>
       <option value="hot">Hot</option>
       <option value="bone">Bone</option>
+      <option value="rainbow">Rainbow</option>
       <option value="inferno">Inferno</option>
       <option value="grayscale">Grayscale</option>
       <option value="gray_lighter">Gray (lighter)</option>
