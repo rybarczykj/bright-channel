@@ -56,6 +56,9 @@ def refine_transmission(img_float, t, radius=40, eps=0.001, color_guide=True):
     return np.clip(t_refined.astype(np.float64), 0, 1)
 
 
+MATTING_PROGRESS = {'pct': 0, 'stage': ''}
+
+
 def _matting_laplacian(img, win_size=1, eps=1e-7):
     """Levin et al. closed-form matting Laplacian (sparse)."""
     h, w, c = img.shape
@@ -67,7 +70,13 @@ def _matting_laplacian(img, win_size=1, eps=1e-7):
     col_idx = []
     vals = []
 
+    total_rows = h - 2 * win_size
+    MATTING_PROGRESS['stage'] = 'Building Laplacian'
+
     for yi in range(win_size, h - win_size):
+        if (yi - win_size) % 10 == 0:
+            MATTING_PROGRESS['pct'] = int(80 * (yi - win_size) / total_rows)
+
         for xi in range(win_size, w - win_size):
             patch = img[yi - win_size:yi + win_size + 1,
                         xi - win_size:xi + win_size + 1].reshape(nwin, c)
@@ -91,6 +100,8 @@ def _matting_laplacian(img, win_size=1, eps=1e-7):
                         col_idx.append(indices[j])
                         vals.append(win_vals[i, j])
 
+    MATTING_PROGRESS['pct'] = 80
+    MATTING_PROGRESS['stage'] = 'Assembling matrix'
     L = sparse.csr_matrix((vals, (row_idx, col_idx)), shape=(n, n))
     return L
 
@@ -98,13 +109,19 @@ def _matting_laplacian(img, win_size=1, eps=1e-7):
 def refine_transmission_matting(img_float, t, lam=1e-4):
     """Refine transmission using Levin et al. closed-form matting Laplacian.
     Solves: (L + lambda*I) * t_refined = lambda * t"""
+    MATTING_PROGRESS['pct'] = 0
+    MATTING_PROGRESS['stage'] = 'Starting'
     h, w = t.shape
     n = h * w
     L = _matting_laplacian(img_float, win_size=1)
+    MATTING_PROGRESS['pct'] = 85
+    MATTING_PROGRESS['stage'] = 'Solving linear system'
     I_sp = sparse.eye(n)
     A = L + lam * I_sp
     b = lam * t.ravel()
     x = spsolve(A, b)
+    MATTING_PROGRESS['pct'] = 100
+    MATTING_PROGRESS['stage'] = 'Done'
     return np.clip(x.reshape(h, w), 0, 1)
 
 

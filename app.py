@@ -10,7 +10,7 @@ pillow_heif.register_heif_opener()
 from bright_channel import (
     bright_channel, dark_channel, normalize_bright_channel, erode_bright_channel,
     compute_illumination_invariants, dehaze, to_u8, shadow_segmentation,
-    colorize_segments
+    colorize_segments, MATTING_PROGRESS
 )
 
 app = Flask(__name__)
@@ -367,6 +367,8 @@ HTML = """
     return p;
   }
 
+  let progressInterval = null;
+
   function update() {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
@@ -377,11 +379,25 @@ HTML = """
       const qs = new URLSearchParams(params).toString();
       const t0 = performance.now();
       const img = document.getElementById('output');
+      const timingEl = document.getElementById('timing');
+
+      if (progressInterval) clearInterval(progressInterval);
+      if (params.soft_matting === '1') {
+        timingEl.textContent = 'Soft matting: starting...';
+        progressInterval = setInterval(async () => {
+          try {
+            const res = await fetch('/progress');
+            const p = await res.json();
+            timingEl.textContent = `Soft matting: ${p.stage} (${p.pct}%)`;
+          } catch(e) {}
+        }, 500);
+      }
+
       const newImg = new Image();
       newImg.onload = () => {
+        if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
         img.src = newImg.src;
-        document.getElementById('timing').textContent =
-          `${(performance.now() - t0).toFixed(0)}ms round-trip`;
+        timingEl.textContent = `${(performance.now() - t0).toFixed(0)}ms round-trip`;
       };
       newImg.src = '/render?' + qs + '&t=' + Date.now();
     }, 50);
@@ -695,6 +711,11 @@ def upload():
             f.save(str(dest))
 
     return jsonify({'name': name})
+
+
+@app.route('/progress')
+def progress():
+    return jsonify(MATTING_PROGRESS)
 
 
 @app.route('/images')
