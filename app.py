@@ -429,6 +429,33 @@ HTML = """
         <input type="range" id="gmm_weight" min="0" max="1" step="0.05" value="1">
       </div>
     </div>
+    <div id="colormap-section" style="display:none; margin-top: 8px; padding-top: 8px; border-top: 1px solid #333;">
+      <label style="font-size: 10px; color: #666; margin-bottom: 3px; display: block;">color palette</label>
+      <select id="colormap-select">
+        <option value="grayscale">Grayscale</option>
+        <option value="gray_lighter">Gray (lighter)</option>
+        <option value="gray_lightest">Gray (lightest)</option>
+        <option value="viridis">Viridis</option>
+        <option value="magma">Magma</option>
+        <option value="plasma">Plasma</option>
+        <option value="inferno">Inferno</option>
+        <option value="hot">Hot</option>
+        <option value="bone">Bone</option>
+        <option value="rainbow">Rainbow</option>
+        <option value="cmyk">CMYK</option>
+        <option value="junior_senior">Junior Senior</option>
+      </select>
+    </div>
+    <div id="segstyle-section" style="display:none; margin-top: 8px; padding-top: 8px; border-top: 1px solid #333;">
+      <label style="font-size: 10px; color: #666; margin-bottom: 3px; display: block;">color palette</label>
+      <select id="segstyle-select">
+        <option value="random_tinted">Random + confidence tint</option>
+        <option value="mean_color">Mean image color</option>
+        <option value="random_plain">Random (no tint)</option>
+        <option value="gray_random">Grayscale random</option>
+        <option value="gray_weighted">Grayscale weighted</option>
+      </select>
+    </div>
   </div>
 
   <div class="section">
@@ -483,33 +510,6 @@ HTML = """
       <input type="range" id="gamma" min="0.1" max="5.0" step="0.1" value="1.0">
     </div>
 
-    <div id="colormap-section" style="display:none; margin-top: 4px;">
-      <label style="font-size: 10px; color: #666; margin-bottom: 3px; display: block;">colormap</label>
-      <select id="colormap-select">
-        <option value="grayscale">Grayscale</option>
-        <option value="gray_lighter">Gray (lighter)</option>
-        <option value="gray_lightest">Gray (lightest)</option>
-        <option value="viridis">Viridis</option>
-        <option value="magma">Magma</option>
-        <option value="plasma">Plasma</option>
-        <option value="inferno">Inferno</option>
-        <option value="hot">Hot</option>
-        <option value="bone">Bone</option>
-        <option value="rainbow">Rainbow</option>
-        <option value="cmyk">CMYK</option>
-        <option value="junior_senior">Junior Senior</option>
-      </select>
-    </div>
-    <div id="segstyle-section" style="display:none; margin-top: 4px;">
-      <label style="font-size: 10px; color: #666; margin-bottom: 3px; display: block;">segment coloring</label>
-      <select id="segstyle-select">
-        <option value="random_tinted">Random + confidence tint</option>
-        <option value="mean_color">Mean image color</option>
-        <option value="random_plain">Random (no tint)</option>
-        <option value="gray_random">Grayscale random</option>
-        <option value="gray_weighted">Grayscale weighted</option>
-      </select>
-    </div>
     <button class="btn" id="save-btn" style="margin-top: 8px;">Export full res</button>
     <div class="status-msg" id="save-status"></div>
     <div class="timing" id="timing"></div>
