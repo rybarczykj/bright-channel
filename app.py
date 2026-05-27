@@ -644,11 +644,14 @@ HTML = """
   const noGfViews = new Set(['seg_confidence', 'seg_vis', 'seg_shadow', 'refined', 'dark_channel', 'original']);
   const hazeOnlyViews = new Set(['dehazed', 'transmission', 'depth', 'dark_channel']);
 
+  const noGammaViews = new Set(['seg_vis', 'original']);
+
   function updateControlVisibility() {
     const showSmoothing = !noGfViews.has(currentView);
     const showDehaze = showSmoothing && currentMode === 'haze' && hazeOnlyViews.has(currentView);
     document.getElementById('smoothing-sub').style.display = showSmoothing ? '' : 'none';
     document.getElementById('dehaze-options').style.display = showDehaze ? '' : 'none';
+    document.getElementById('output-section').style.display = noGammaViews.has(currentView) ? 'none' : '';
     document.getElementById('colormap-section').style.display = colormapViews.has(currentView) ? '' : 'none';
     document.getElementById('segstyle-section').style.display = currentView === 'seg_vis' ? '' : 'none';
     document.getElementById('gmm-section').style.display = currentView === 'seg_confidence' ? '' : 'none';
