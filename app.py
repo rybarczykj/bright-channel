@@ -406,9 +406,6 @@ HTML = """
       <button data-view="dehazed">Dehazed</button>
       <button data-view="transmission">Transmission</button>
       <button class="active" data-view="depth">Depth</button>
-      <button data-view="seg_confidence">Confidence</button>
-      <button data-view="seg_vis">Segmentation</button>
-      <button data-view="seg_shadow">Haze Map</button>
       <button data-view="original">Original</button>
     </div>
     <div id="shadow-views" style="display:none">
@@ -416,10 +413,15 @@ HTML = """
       <button data-view="mrf">Smoothed</button>
       <button data-view="shadow_depth">Depth</button>
       <button data-view="albedo">Albedo</button>
-      <button data-view="seg_confidence">Confidence</button>
-      <button data-view="seg_vis">Segmentation</button>
-      <button data-view="seg_shadow">Shadow Map</button>
       <button data-view="original">Original</button>
+    </div>
+    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #333;">
+      <div style="font-size: 9px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Segmentation</div>
+      <button data-view="seg_vis">Segments</button>
+      <button data-view="seg_confidence">Confidence</button>
+      <button id="seg-map-btn" data-view="seg_shadow">
+        <span id="seg-map-label">Haze Map</span>
+      </button>
     </div>
     <div id="gmm-section" style="display:none; margin-top: 6px;">
       <div class="slider-group">
@@ -643,10 +645,14 @@ HTML = """
       const hideId = currentMode === 'haze' ? 'shadow-views' : 'haze-views';
       document.getElementById(hideId).style.display = 'none';
       document.getElementById(showId).style.display = '';
-      const hasView = document.querySelector(`#${showId} button[data-view="${currentView}"]`);
-      if (!hasView) currentView = currentMode === 'haze' ? 'dehazed' : 'mrf';
+      document.getElementById('seg-map-label').textContent = currentMode === 'haze' ? 'Haze Map' : 'Shadow Map';
+      const hasView = document.querySelector(`#view-toggle button[data-view="${currentView}"]`);
+      const inHidden = document.querySelector(`#${hideId} button[data-view="${currentView}"]`);
+      if (inHidden && !document.querySelector(`#${showId} button[data-view="${currentView}"]`)) {
+        currentView = currentMode === 'haze' ? 'depth' : 'mrf';
+      }
       document.querySelectorAll('#view-toggle button[data-view]').forEach(b => b.classList.remove('active'));
-      const activeBtn = document.querySelector(`#${showId} button[data-view="${currentView}"]`);
+      const activeBtn = document.querySelector(`#view-toggle button[data-view="${currentView}"]`);
       if (activeBtn) activeBtn.classList.add('active');
       updateControlVisibility();
       update();
@@ -662,6 +668,7 @@ HTML = """
       if (modeBtn) modeBtn.classList.add('active');
       document.getElementById('shadow-views').style.display = currentMode === 'shadow' ? '' : 'none';
       document.getElementById('haze-views').style.display = currentMode === 'haze' ? '' : 'none';
+      document.getElementById('seg-map-label').textContent = currentMode === 'haze' ? 'Haze Map' : 'Shadow Map';
     }
     if (preset.view) {
       currentView = preset.view;
