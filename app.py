@@ -74,7 +74,7 @@ def compute(image_name, img_float, guides, kappa, beta, gf_radius, gf_eps, mode=
 
 def render_view(image_name, img, img_float, guides, view, kappa, beta, gamma,
                 gf_radius, gf_eps, mode, cmap, color_guide, soft_matting,
-                segstyle='random_tinted'):
+                segstyle='random_tinted', gmm_weight=1.0):
     """Render a view and return a numpy uint8 image (BGR)."""
 
     if view == 'original':
@@ -125,16 +125,14 @@ def render_view(image_name, img, img_float, guides, view, kappa, beta, gamma,
             CACHE[seg_key] = (confidence_map, seg_labels, shadow_intensity, q_cand_map)
 
         if view == 'seg_confidence':
-            v = np.power(np.clip(confidence_map, 0, 1), gamma) if gamma != 1.0 else confidence_map
+            blended = (1 - gmm_weight) * q_cand_map + gmm_weight * confidence_map
+            v = np.power(np.clip(blended, 0, 1), gamma) if gamma != 1.0 else blended
             return apply_colormap(v, cmap)
         elif view == 'seg_vis':
             return colorize_segments(img_float, seg_labels, confidence_map, segstyle)
         elif view == 'seg_shadow':
             v = np.power(np.clip(shadow_intensity, 0, 1), gamma) if gamma != 1.0 else shadow_intensity
             return to_u8(v)
-        elif view == 'seg_qcand':
-            v = np.power(np.clip(q_cand_map, 0, 1), gamma) if gamma != 1.0 else q_cand_map
-            return apply_colormap(v, cmap)
         else:
             return to_u8(confidence_map)
 
@@ -457,14 +455,13 @@ HTML = """
   <div class="section" id="view-toggle">
     <div class="section-header">View</div>
     <div id="shadow-views">
-      <button class="active" data-view="mrf">MRF</button>
-      <button data-view="refined">Refined</button>
+      <button data-view="refined">Raw</button>
+      <button class="active" data-view="mrf">Smoothed</button>
       <button data-view="shadow_depth">Depth</button>
       <button data-view="albedo">Albedo</button>
-      <button data-view="seg_confidence">Seg. Confidence</button>
+      <button data-view="seg_confidence">Confidence</button>
       <button data-view="seg_vis">Segmentation</button>
-      <button data-view="seg_shadow">Shadow Mask</button>
-      <button data-view="seg_qcand">Good Candidates</button>
+      <button data-view="seg_shadow">Shadow Map</button>
       <button data-view="original">Original</button>
     </div>
     <div id="haze-views" style="display:none">
@@ -472,10 +469,9 @@ HTML = """
       <button data-view="transmission">Transmission</button>
       <button data-view="depth">Depth</button>
       <button data-view="dark_channel">Dark Channel</button>
-      <button data-view="seg_confidence">Seg. Confidence</button>
+      <button data-view="seg_confidence">Confidence</button>
       <button data-view="seg_vis">Segmentation</button>
-      <button data-view="seg_shadow">Haze Mask</button>
-      <button data-view="seg_qcand">Good Candidates</button>
+      <button data-view="seg_shadow">Haze Map</button>
       <button data-view="original">Original</button>
     </div>
 
@@ -507,6 +503,13 @@ HTML = """
       </select>
     </div>
 
+    <div id="gmm-section" style="display:none; margin-top: 8px;">
+      <div class="slider-group">
+        <label>gmm weight <span id="v-gmm_weight">1.0</span></label>
+        <input type="range" id="gmm_weight" min="0" max="1" step="0.05" value="1">
+      </div>
+    </div>
+
     <div class="timing" id="timing"></div>
   </div>
 
@@ -533,20 +536,21 @@ HTML = """
 </div>
 
 <script>
-  const sliders = ['kappa', 'beta', 'gf_radius', 'gf_eps_log', 'gamma'];
+  const sliders = ['kappa', 'beta', 'gf_radius', 'gf_eps_log', 'gamma', 'gmm_weight'];
   const formatters = {
     kappa: v => v,
     beta: v => parseFloat(v).toFixed(2),
     gf_radius: v => v,
     gf_eps_log: v => Math.pow(10, parseFloat(v)).toFixed(4),
     gamma: v => parseFloat(v).toFixed(1),
+    gmm_weight: v => parseFloat(v).toFixed(2),
   };
 
   let currentView = 'mrf';
   let currentMode = 'shadow';
   let debounceTimer = null;
 
-  const colormapViews = new Set(['seg_confidence', 'seg_qcand', 'shadow_depth', 'depth']);
+  const colormapViews = new Set(['seg_confidence', 'shadow_depth', 'depth']);
 
   function getParams() {
     const p = { view: currentView, mode: currentMode, image: document.getElementById('image-select').value };
@@ -612,7 +616,7 @@ HTML = """
   }
   bindThumbs();
 
-  const noGfViews = new Set(['seg_confidence', 'seg_vis', 'seg_shadow', 'seg_qcand', 'refined', 'dark_channel', 'original']);
+  const noGfViews = new Set(['seg_confidence', 'seg_vis', 'seg_shadow', 'refined', 'dark_channel', 'original']);
   const hazeOnlyViews = new Set(['dehazed', 'transmission', 'depth', 'dark_channel']);
 
   function updateControlVisibility() {
@@ -622,6 +626,7 @@ HTML = """
     document.getElementById('dehaze-options').style.display = showDehaze ? '' : 'none';
     document.getElementById('colormap-section').style.display = colormapViews.has(currentView) ? '' : 'none';
     document.getElementById('segstyle-section').style.display = currentView === 'seg_vis' ? '' : 'none';
+    document.getElementById('gmm-section').style.display = currentView === 'seg_confidence' ? '' : 'none';
   }
 
   document.querySelectorAll('#view-toggle button[data-view]').forEach(btn => {
@@ -935,6 +940,7 @@ def _parse_render_params():
         'color_guide': request.args.get('color_guide', '1') == '1',
         'soft_matting': request.args.get('soft_matting') == '1',
         'segstyle': request.args.get('segstyle', 'random_tinted'),
+        'gmm_weight': float(request.args.get('gmm_weight', 1.0)),
     }
 
 
@@ -950,7 +956,7 @@ def render():
 
     result = render_view(p['image_name'], img, img_float, guides, **{
         k: p[k] for k in ('view', 'kappa', 'beta', 'gamma', 'gf_radius', 'gf_eps',
-                          'mode', 'cmap', 'color_guide', 'soft_matting', 'segstyle')
+                          'mode', 'cmap', 'color_guide', 'soft_matting', 'segstyle', 'gmm_weight')
     })
     return send_file(encode_png(result), mimetype='image/png')
 
@@ -967,7 +973,7 @@ def save():
 
     result = render_view(p['image_name'], img, img_float, guides, **{
         k: p[k] for k in ('view', 'kappa', 'beta', 'gamma', 'gf_radius', 'gf_eps',
-                          'mode', 'cmap', 'color_guide', 'soft_matting', 'segstyle')
+                          'mode', 'cmap', 'color_guide', 'soft_matting', 'segstyle', 'gmm_weight')
     })
 
     stem = Path(p['image_name']).stem
