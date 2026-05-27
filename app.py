@@ -258,20 +258,23 @@ HTML = """
   ::-webkit-scrollbar-thumb:hover { background: #555; }
 
   .controls {
-    position: fixed; top: 0; left: 0; width: 240px; height: 100vh;
+    position: fixed; top: 0; left: 0; width: 280px; height: 100vh;
     background: #202024; padding: 0; overflow-y: auto; z-index: 10;
     border-right: 1px solid #333;
     display: flex; flex-direction: column;
   }
 
   .section {
-    border-bottom: 1px solid #333;
+    border: 1px solid #333;
+    border-radius: 4px;
     padding: 10px 14px;
+    margin: 6px 10px;
+    background: #232327;
   }
   .section-header {
     font-size: 10px;
     font-weight: 500;
-    color: #888;
+    color: #999;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 8px;
@@ -281,6 +284,7 @@ HTML = """
   .slider-group label {
     display: flex; justify-content: space-between;
     font-size: 10px; color: #888; margin-bottom: 3px;
+    text-transform: lowercase;
   }
   .slider-group label span {
     color: #7a7aff; font-variant-numeric: tabular-nums; font-size: 11px;
@@ -350,12 +354,14 @@ HTML = """
 
   details { margin-top: 6px; }
   details summary {
-    font-size: 10px; color: #666; cursor: pointer;
+    font-size: 10px; font-weight: 500; color: #999; cursor: pointer;
     list-style: none; user-select: none;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 4px 0;
   }
-  details summary::before { content: '+ '; }
-  details[open] summary::before { content: '- '; }
-  details > div { margin-top: 6px; }
+  details summary::before { content: '+ '; color: #666; }
+  details[open] summary::before { content: '- '; color: #666; }
+  details > div { margin-top: 8px; }
 
   .param-check {
     display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px;
