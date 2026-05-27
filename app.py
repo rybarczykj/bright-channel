@@ -425,7 +425,7 @@ HTML = """
     </div>
     <div id="gmm-section" style="display:none; margin-top: 6px;">
       <div class="slider-group">
-        <label>gmm weight <span id="v-gmm_weight">1.0</span></label>
+        <label>cross-reference shadows <span id="v-gmm_weight">1.0</span></label>
         <input type="range" id="gmm_weight" min="0" max="1" step="0.05" value="1">
       </div>
     </div>
