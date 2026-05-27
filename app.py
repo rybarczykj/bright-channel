@@ -344,18 +344,23 @@ HTML = """
     <input type="range" id="gf_eps_log" min="-4" max="1" step="0.1" value="-3">
   </div>
   <div id="dehaze-options">
-  <div style="margin-top: 6px;">
-    <label style="font-size: 13px; cursor: pointer;">
-      <input type="checkbox" id="color-guide" checked style="accent-color: #88f; margin-right: 6px;">
-      Color guide (He et al.)
-    </label>
-  </div>
-  <div style="margin-top: 4px;">
-    <label style="font-size: 13px; cursor: pointer;">
-      <input type="checkbox" id="soft-matting" style="accent-color: #88f; margin-right: 6px;">
-      Soft matting (slow, sharp)
-    </label>
-  </div>
+  <details style="margin-top: 8px;">
+    <summary style="font-size: 12px; color: #888; cursor: pointer;">Advanced</summary>
+    <div style="margin-top: 6px;">
+      <label style="font-size: 13px; cursor: pointer;">
+        <input type="checkbox" id="color-guide" style="accent-color: #88f; margin-right: 6px;">
+        Color guide
+      </label>
+      <div style="font-size: 10px; color: #666; margin: 2px 0 6px 20px;">Uses RGB edges to preserve depth boundaries. Best when objects have different colors than the haze.</div>
+    </div>
+    <div>
+      <label style="font-size: 13px; cursor: pointer;">
+        <input type="checkbox" id="soft-matting" style="accent-color: #88f; margin-right: 6px;">
+        Soft matting
+      </label>
+      <div style="font-size: 10px; color: #666; margin: 2px 0 0 20px;">Sharper edges, ~8s. Matches the original He et al. paper quality.</div>
+    </div>
+  </details>
   </div>
   </div>
 
