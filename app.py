@@ -385,11 +385,12 @@ HTML = """
       <input type="file" id="file-upload" accept="image/*" style="display:none;" multiple>
     </label>
     <div style="font-size:9px; color:#555; margin-bottom:6px;">or drop anywhere on the page</div>
-    <select id="image-select">
+    <select id="image-select" {% if not is_local %}style="display:none"{% endif %}>
       {% for img in images %}
       <option value="{{ img }}">{{ img }}</option>
       {% endfor %}
     </select>
+    {% if is_local %}
     <div class="image-list" id="image-list">
       {% for img in images %}
       <div class="thumb{% if loop.first %} active{% endif %}" data-name="{{ img }}">
@@ -398,6 +399,9 @@ HTML = """
       </div>
       {% endfor %}
     </div>
+    {% else %}
+    <div class="image-list" id="image-list"></div>
+    {% endif %}
   </div>
 
   <div class="section">
@@ -750,7 +754,7 @@ HTML = """
   updateControlVisibility();
   update();
 
-  setInterval(async () => {
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') setInterval(async () => {
     const res = await fetch('/images');
     const imgs = await res.json();
     const sel = document.getElementById('image-select');
@@ -785,7 +789,8 @@ HTML = """
 @app.route('/')
 def index():
     images = [p.name for p in list_images()]
-    return render_template_string(HTML, images=images)
+    is_local = request.host.startswith('127.0.0.1') or request.host.startswith('localhost')
+    return render_template_string(HTML, images=images, is_local=is_local)
 
 
 @app.route('/thumb/<name>')
