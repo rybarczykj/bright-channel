@@ -444,14 +444,6 @@ HTML = """
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-header">Output</div>
-    <div class="slider-group">
-      <label>Gamma <span id="v-gamma">1.0</span></label>
-      <input type="range" id="gamma" min="0.1" max="5.0" step="0.1" value="1.0">
-    </div>
-  </div>
-
   <div class="section" id="view-toggle">
     <div class="section-header">View</div>
     <div id="shadow-views">
@@ -474,9 +466,17 @@ HTML = """
       <button data-view="seg_shadow">Haze Map</button>
       <button data-view="original">Original</button>
     </div>
+  </div>
 
-    <div id="colormap-section" style="display:none; margin-top: 8px;">
-      <label style="font-size: 10px; color: #666; margin-bottom: 3px; display: block;">Colormap</label>
+  <div class="section" id="output-section">
+    <div class="section-header">Output</div>
+    <div class="slider-group">
+      <label>gamma <span id="v-gamma">1.0</span></label>
+      <input type="range" id="gamma" min="0.1" max="5.0" step="0.1" value="1.0">
+    </div>
+
+    <div id="colormap-section" style="display:none; margin-top: 4px;">
+      <label style="font-size: 10px; color: #666; margin-bottom: 3px; display: block;">colormap</label>
       <select id="colormap-select">
         <option value="grayscale">Grayscale</option>
         <option value="gray_lighter">Gray (lighter)</option>
@@ -492,8 +492,8 @@ HTML = """
         <option value="junior_senior">Junior Senior</option>
       </select>
     </div>
-    <div id="segstyle-section" style="display:none; margin-top: 8px;">
-      <label style="font-size: 10px; color: #666; margin-bottom: 3px; display: block;">Segment coloring</label>
+    <div id="segstyle-section" style="display:none; margin-top: 4px;">
+      <label style="font-size: 10px; color: #666; margin-bottom: 3px; display: block;">segment coloring</label>
       <select id="segstyle-select">
         <option value="random_tinted">Random + confidence tint</option>
         <option value="mean_color">Mean image color</option>
@@ -502,14 +502,15 @@ HTML = """
         <option value="gray_weighted">Grayscale weighted</option>
       </select>
     </div>
-
-    <div id="gmm-section" style="display:none; margin-top: 8px;">
+    <div id="gmm-section" style="display:none; margin-top: 4px;">
       <div class="slider-group">
         <label>gmm weight <span id="v-gmm_weight">1.0</span></label>
         <input type="range" id="gmm_weight" min="0" max="1" step="0.05" value="1">
       </div>
     </div>
 
+    <button class="btn" id="save-btn" style="margin-top: 8px;">Export full res</button>
+    <div class="status-msg" id="save-status"></div>
     <div class="timing" id="timing"></div>
   </div>
 
@@ -522,11 +523,6 @@ HTML = """
       <button class="btn primary" id="save-preset-btn" style="flex:1">Save</button>
       <button class="btn danger" id="delete-preset-btn">Delete</button>
     </div>
-  </div>
-
-  <div class="section">
-    <button class="btn" id="save-btn">Export full res</button>
-    <div class="status-msg" id="save-status"></div>
   </div>
 </div>
 
