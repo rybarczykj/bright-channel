@@ -1,16 +1,26 @@
-# Bright Channel
+This is an intereactive explorer for some image processing algorithms related to shadow and haze detection. You can drop an image on the page and play around. 
 
-Interactive explorer for shadow and haze detection using bright/dark channel priors. Drop in a photo, tweak parameters, see depth maps, shadow segmentation, and dehazing in real time.
+## How to download and use
 
-## Run locally
+Click the green button above ↗ , download zip.
 
-Requires [uv](https://docs.astral.sh/uv/) and Python 3.11+.
+Unzip, then right-click the folder in Finder and select “new terminal at folder”. 
+
+Paste the below command into the terminal. It's to install [uv](https://docs.astral.sh/uv/), the project's only external dependency.
+
+```
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+The paste this command to run the app:
 
 ```
 uv run python app.py
 ```
 
-Open http://localhost:5555
+
+In any browser, go to http://localhost:5555
+
 
 ## What it does
 
