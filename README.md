@@ -31,11 +31,11 @@ In Finder, right-click the (unzipped) folder and select “new terminal at folde
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-After `uv` is downloaded, you'll need to close and re-open the terminal to actually use it. 
+After `uv` is downloaded, you'll need to close and re-open the terminal to actually use it. Back to step 2.
 
 #### 4. Run the app
 
-Once you've re-opened the terminal, this command will run the app:
+Once you're back, this command will run the app:
 
 ```
 uv run python app.py
