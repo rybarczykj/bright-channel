@@ -6,24 +6,35 @@ Hi! This app is an intereactive explorer for some image processing algorithms re
 
 ## Quick start
 
-1. Download this project. Click the green button at the top of the page and "download zip".
+#### 1. Download this project
+
+Click the green button at the top of the page and "download zip".
 
   <img width="333" alt="Screenshot 2026-05-27 at 11 02 23 PM" src="https://github.com/user-attachments/assets/fc1983f0-bbcf-4cd8-9016-cb54304cf0e0" />
 
 
-2. Open the project in a terminal. In Finder, right-click the (unzipped) folder and select “new terminal at folder”. 
+
+#### 2. Open the project in a terminal
+
+
+In Finder, right-click the (unzipped) folder and select “new terminal at folder”. 
 
 <img width="333"  alt="Screenshot 2026-05-27 at 10 53 39 PM" src="https://github.com/user-attachments/assets/9ea0378e-5030-4566-a02d-4959ed618803" />
 
 
-3. Install required dependency.
-[uv](https://docs.astral.sh/uv/) needs to be installed to run this. You can paste this command into the terminal to do this
+#### 3. Install required dependency
+
+[uv](https://docs.astral.sh/uv/) needs to be installed to run this. It's very common and can be trusted. To install, paste this command into the terminal:
 
 ```
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-4. Run the app. After `uv` is downloaded, you'll need to close and re-open the terminal to actually use it. Once you're back, this command will run the app:
+After `uv` is downloaded, you'll need to close and re-open the terminal to actually use it. 
+
+#### 4. Run the app
+
+Once you've re-opened the terminal, this command will run the app:
 
 ```
 uv run python app.py
@@ -31,16 +42,14 @@ uv run python app.py
 
 Now, in your web browser, go to http://localhost:5555
 
-
 Have fun!
 
-### What it does (technical)
+### Glossary 
 
 - **Haze mode**: Dark channel prior for depth estimation and dehazing
 - **Shadow mode**: Bright channel cue for shadow detection
 - **Segmentation**: Shadow detection via Felzenszwalb segmentation + GMM histogram confidence
 - **Soft matting**: Closed-form matting Laplacian for sharp edge-preserving refinement
-
 
 ### Papers
 
