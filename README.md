@@ -17,7 +17,7 @@ Paste the below command into the terminal to install [uv](https://docs.astral.sh
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-When `uv` is downloaded done, you'll need to close and re-open the terminal to actually be able to use it. Once you re-open a terminal in the same location, paste this command to run the app:
+When `uv` is downloaded, you'll need to close and re-open the terminal to actually be able to use it. Re-open a terminal in the same location, and run this command to run the app:
 
 ```
 uv run python app.py
