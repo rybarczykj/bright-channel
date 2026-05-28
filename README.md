@@ -41,7 +41,7 @@ Once you're back, this command will run the app:
 uv run python app.py
 ```
 
-Now, in your web browser, go to http://localhost:5555
+This will take a second. You'll eventually see some confirmation like "Serving Flask app". In your web browser, go to http://localhost:5555
 
 Have fun!
 
