@@ -11,19 +11,22 @@ Click the green button at the top of the page and "download zip".
 
 Unzip the file in Finder, then right-click the folder and select “new terminal at folder”. 
 
-Paste the below command into the terminal to install [uv](https://docs.astral.sh/uv/), the project's only external dependency.
+<img width="444"  alt="Screenshot 2026-05-27 at 10 53 39 PM" src="https://github.com/user-attachments/assets/9ea0378e-5030-4566-a02d-4959ed618803" />
+
+
+In the terminal, paste this command into the terminal to install [uv](https://docs.astral.sh/uv/), the project's only external dependency.
 
 ```
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-When `uv` is downloaded, you'll need to close and re-open the terminal to actually be able to use it. Re-open a terminal in the same location, and run this command to run the app:
+When `uv` is downloaded, you'll need to close and re-open the terminal to actually be able to use it. When you've done this (make sure new terminal is in the same location), this command will run the app:
 
 ```
 uv run python app.py
 ```
 
-In any browser, go to http://localhost:5555
+Now, in any browser, go to http://localhost:5555
 
 
 Have fun!
