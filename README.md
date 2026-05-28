@@ -2,9 +2,9 @@ This is an intereactive explorer for some image processing algorithms related to
 
 ## How to download and use
 
-Click the green button above ↗ , download zip.
+Click the green button at the top of the page ↗ , click and download zip.
 
-Unzip, then right-click the folder in Finder and select “new terminal at folder”. 
+Unzip the file in Finder, then right-click the folder and select “new terminal at folder”. 
 
 Paste the below command into the terminal. It's to install [uv](https://docs.astral.sh/uv/), the project's only external dependency.
 
