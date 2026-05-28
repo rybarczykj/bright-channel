@@ -1,7 +1,8 @@
 
 Hi! This app is an intereactive explorer for some image processing algorithms related to shadow and haze detection. The app runs in the browser and allows you to drop an image on the page and play around. 
 
-<img width="333"  alt="084894F7-48AE-491D-9C79-AD8497D6A0CE_1_102_o_1_haze_k1_b0 09_g1 1_r9_e0 0006_transmission" src="https://github.com/user-attachments/assets/469e7ef6-ed8d-415d-b31f-85d06413830c" />
+<img width="444"  alt="image" src="https://github.com/user-attachments/assets/ca4048c9-32ea-4a12-8f6b-3d58edf78a22" />
+
 
 
 ### Quick start
