@@ -12,15 +12,18 @@ Paste the below command into the terminal. It's to install [uv](https://docs.ast
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-The paste this command to run the app:
+When it's done, you'll need to close and re-open the terminal to actually use `uv`. 
+
+After you do that, paste this command to run the app
 
 ```
 uv run python app.py
 ```
 
-
 In any browser, go to http://localhost:5555
 
+
+Have fun!
 
 ## What it does
 
